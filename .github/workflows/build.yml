@@ -1,3 +1,4 @@
+
 name: ASTROSPHERE Android Build
 
 on:
@@ -14,27 +15,31 @@ jobs:
       - name: Checkout project
         uses: actions/checkout@v4
 
-      - name: Install Java 17
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Gradle
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licences
+        run: yes | sdkmanager --licenses
+
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
+
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
 
-      - name: Install Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android platform
-        run: |
-          sdkmanager "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
-
-      - name: Build APK
+      - name: Build ASTROSPHERE APK
         run: gradle assembleDebug
 
       - name: Upload APK
@@ -42,3 +47,4 @@ jobs:
         with:
           name: ASTROSPHERE-2.0-APK
           path: app/build/outputs/apk/debug/app-debug.apk
+
