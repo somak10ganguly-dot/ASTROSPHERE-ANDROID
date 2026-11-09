@@ -34,7 +34,7 @@ data class GaiaStar(
 
 object SpaceData {
 
-    private const val NASA_KEY = "DEMO_KEY"
+    private val NASA_KEY = BuildConfig.NASA_API_KEY
 
     private suspend fun get(url: String): String =
         withContext(Dispatchers.IO) {
