@@ -120,14 +120,13 @@ object SpaceData {
                         velocity = approach
                             .getJSONObject("relative_velocity")
                             .getString("kilometers_per_hour"),
-                        distance = approach.getString(
-                            "miss_distance"
-                        ).getString("kilometers"),
+                        distance = approach
+    .getJSONObject("miss_distance")
+    .getString("kilometers"),                    
                         hazardous = item.getBoolean(
                             "is_potentially_hazardous_asteroid"
                         )
-                    )
-                )
+                    )             )
             }
         }
 
