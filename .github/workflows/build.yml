@@ -12,26 +12,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout source code
       - name: Checkout project
         uses: actions/checkout@v5
 
-      # 2. Install Java
       - name: Setup Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      # 3. Locate Android SDK
       - name: Locate Android SDK
         run: |
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
 
           echo "ANDROID_HOME=$SDK_ROOT" >> $GITHUB_ENV
-
-          echo "Android SDK:"
-          ls -la "$SDK_ROOT"
 
           SDKMANAGER=$(find "$SDK_ROOT/cmdline-tools" \
             -type f -name sdkmanager 2>/dev/null \
@@ -42,8 +36,6 @@ jobs:
             exit 1
           fi
 
-          echo "SDKMANAGER=$SDKMANAGER"
-
           yes | "$SDKMANAGER" --licenses || true
 
           "$SDKMANAGER" \
@@ -51,45 +43,48 @@ jobs:
             "build-tools;35.0.0" \
             "platform-tools"
 
-      # 4. Setup Gradle
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: '8.11.1'
 
-      # 5. Build Android APK
-      - name: Build APK
+      - name: Build AstroSphere APK
+        env:
+          NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
         run: |
-          set -o pipefail
-          gradle assembleDebug --stacktrace --info 2>&1 | tee build.log
+          set -euo pipefail
 
-      # 6. Search for generated APK
-      - name: Locate Generated APK
-        run: |
-          echo "Searching for APK files..."
-
-          find . -type f -name "*.apk" -print
-
-          APK=$(find . -type f -name "*.apk" | head -n 1)
-
-          if [ -z "$APK" ]; then
-            echo "ERROR: No APK generated"
+          if [ -z "$NASA_API_KEY" ]; then
+            echo "ERROR: NASA_API_KEY secret is missing"
             exit 1
           fi
 
-          echo "Found APK: $APK"
+          echo "Building AstroSphere 2.1..."
+
+          gradle assembleDebug --stacktrace 2>&1 | tee build.log
+
+      - name: Verify APK
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          if [ ! -f "$APK" ]; then
+            echo "ERROR: APK not found"
+            find . -name "*.apk" -print
+            exit 1
+          fi
 
           echo "APK_PATH=$APK" >> $GITHUB_ENV
 
-      # 7. Upload APK
-      - name: Upload ASTROSPHERE APK
+          echo "APK successfully generated."
+          ls -lh "$APK"
+
+      - name: Upload AstroSphere 2.1 APK
         uses: actions/upload-artifact@v4
         with:
-          name: ASTROSPHERE-2.0-APK
+          name: ASTROSPHERE-2.1-APK
           path: ${{ env.APK_PATH }}
           if-no-files-found: error
 
-      # 8. Upload diagnostic log
       - name: Upload Build Diagnostics
         if: always()
         uses: actions/upload-artifact@v4
