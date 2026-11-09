@@ -1,3 +1,4 @@
+
 package com.astrosphere.app
 
 import android.os.Bundle
@@ -16,6 +17,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 
 private val SpaceBlack = Color(0xFF070B16)
 private val Panel = Color(0xFF111C30)
@@ -25,7 +28,6 @@ private val Muted = Color(0xFF9AABC4)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         setContent {
             AstroSphereApp()
         }
@@ -34,7 +36,9 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun AstroSphereApp() {
+
     var selected by remember { mutableIntStateOf(0) }
+    var module by remember { mutableStateOf("APOD") }
 
     MaterialTheme(
         colorScheme = darkColorScheme(
@@ -63,14 +67,13 @@ fun AstroSphereApp() {
                             icon = {
                                 Text(symbols[index], fontSize = 21.sp)
                             },
-                            label = {
-                                Text(name, fontSize = 10.sp)
-                            }
+                            label = { Text(name, fontSize = 10.sp) }
                         )
                     }
                 }
             }
         ) { padding ->
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -78,13 +81,24 @@ fun AstroSphereApp() {
                     .verticalScroll(rememberScrollState())
                     .padding(18.dp)
             ) {
+
                 when (selected) {
-                    0 -> HomeScreen(
-                        onExplore = { selected = 1 }
+                    0 -> HomeScreen {
+                        selected = 1
+                        module = "APOD"
+                    }
+
+                    1 -> ExploreScreen(
+                        onSelect = { module = it },
+                        selectedModule = module
                     )
-                    1 -> ExploreScreen()
+
                     2 -> MissionsScreen()
-                    3 -> ResearchScreen()
+
+                    3 -> ResearchScreen(
+                        onSelect = { module = it },
+                        selectedModule = module
+                    )
                 }
             }
         }
@@ -93,6 +107,7 @@ fun AstroSphereApp() {
 
 @Composable
 fun HomeScreen(onExplore: () -> Unit) {
+
     Text(
         "ASTROSPHERE",
         color = Blue,
@@ -112,26 +127,22 @@ fun HomeScreen(onExplore: () -> Unit) {
     Text(
         "NASA • ESA • DEEP SPACE RESEARCH",
         color = Muted,
-        fontSize = 10.sp,
-        letterSpacing = 1.sp
+        fontSize = 10.sp
     )
 
     Spacer(Modifier.height(24.dp))
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                Color(0xFF132C4B),
-                RoundedCornerShape(20.dp)
-            )
-            .padding(20.dp)
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF132C4B)
+        ),
+        shape = RoundedCornerShape(20.dp)
     ) {
-        Column {
+        Column(Modifier.padding(20.dp)) {
+
             Text(
                 "MISSION CONTROL",
                 color = Blue,
-                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
             )
 
@@ -143,11 +154,8 @@ fun HomeScreen(onExplore: () -> Unit) {
                 fontWeight = FontWeight.Bold
             )
 
-            Spacer(Modifier.height(8.dp))
-
             Text(
-                "Your scientific gateway to planets, " +
-                "stars, galaxies and space exploration.",
+                "Your scientific gateway to planets, stars, galaxies and space exploration.",
                 color = Color.LightGray,
                 fontSize = 13.sp
             )
@@ -165,71 +173,25 @@ fun HomeScreen(onExplore: () -> Unit) {
     Text(
         "OBSERVATORY SYSTEMS",
         color = Blue,
-        fontSize = 13.sp,
         fontWeight = FontWeight.Bold
     )
 
     Spacer(Modifier.height(12.dp))
 
-    ObservatoryCard(
-        "01",
-        "ASTRONOMY",
-        "Daily images and deep-space discoveries",
-        "NASA"
+    val systems = listOf(
+        Triple("01", "APOD", "NASA Astronomy Picture of the Day"),
+        Triple("02", "ASTEROIDS", "Near-Earth object tracker"),
+        Triple("03", "GAIA STARS", "ESA stellar catalogue")
     )
 
-    ObservatoryCard(
-        "02",
-        "SOLAR SYSTEM",
-        "Planets, moons and orbital science",
-        "NASA"
-    )
-
-    ObservatoryCard(
-        "03",
-        "ASTEROID TRACKER",
-        "Near-Earth objects and close approaches",
-        "NASA"
-    )
-
-    ObservatoryCard(
-        "04",
-        "SPACE WEATHER",
-        "Solar activity and geomagnetic events",
-        "NASA + ESA"
-    )
-
-    ObservatoryCard(
-        "05",
-        "MILKY WAY",
-        "Stellar catalogue and star measurements",
-        "ESA GAIA"
-    )
-
-    ObservatoryCard(
-        "06",
-        "EARTH OBSERVATORY",
-        "Earth imagery and natural events",
-        "NASA"
-    )
-
-    Spacer(Modifier.height(18.dp))
-
-    Text(
-        "DATA CONNECTION: NOT YET INITIALISED",
-        color = Color(0xFFFFC76A),
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold
-    )
-
-    Spacer(Modifier.height(8.dp))
-
-    Text(
-        "NASA and ESA live connections will be activated " +
-        "in the next development stages.",
-        color = Muted,
-        fontSize = 12.sp
-    )
+    systems.forEach { item ->
+        ObservatoryCard(
+            item.first,
+            item.second,
+            item.third,
+            "LIVE DATA"
+        )
+    }
 }
 
 @Composable
@@ -237,12 +199,15 @@ fun ObservatoryCard(
     number: String,
     title: String,
     description: String,
-    source: String
+    source: String,
+    onClick: (() -> Unit)? = null
 ) {
     Card(
+        onClick = { onClick?.invoke() },
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 5.dp),
+        enabled = onClick != null,
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
             containerColor = Panel
@@ -252,6 +217,7 @@ fun ObservatoryCard(
             modifier = Modifier.padding(15.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+
             Text(
                 number,
                 color = Blue,
@@ -262,24 +228,31 @@ fun ObservatoryCard(
             Spacer(Modifier.width(14.dp))
 
             Column(Modifier.weight(1f)) {
+
                 Text(
                     title,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )
+
                 Spacer(Modifier.height(4.dp))
+
                 Text(
                     description,
                     color = Muted,
                     fontSize = 11.sp
                 )
+
                 Spacer(Modifier.height(4.dp))
+
                 Text(
                     source,
                     color = Blue,
                     fontSize = 10.sp
                 )
             }
+
+            Text("›", color = Blue, fontSize = 24.sp)
         }
     }
 }
@@ -313,36 +286,83 @@ fun SectionTitle(title: String, subtitle: String) {
 }
 
 @Composable
-fun ExploreScreen() {
+fun ExploreScreen(
+    onSelect: (String) -> Unit,
+    selectedModule: String
+) {
     SectionTitle(
         "Explore Space",
-        "Astronomical objects and scientific discoveries"
+        "Select a live astronomical data module"
     )
 
     ObservatoryCard(
-        "01", "PLANETS",
-        "Planetary systems and orbital science", "NASA"
+        "01", "APOD",
+        "NASA daily astronomical image and explanation",
+        "NASA",
+        onClick = { onSelect("APOD") }
     )
 
     ObservatoryCard(
-        "02", "STARS",
-        "Stellar properties and measurements", "ESA GAIA"
+        "02", "ASTEROIDS",
+        "Near-Earth objects and orbital information",
+        "NASA NEO",
+        onClick = { onSelect("ASTEROIDS") }
     )
 
     ObservatoryCard(
-        "03", "GALAXIES",
-        "Galaxies, nebulae and deep space", "NASA"
+        "03", "GAIA STARS",
+        "ESA Gaia DR3 star measurements",
+        "ESA",
+        onClick = { onSelect("GAIA") }
+    )
+
+    Spacer(Modifier.height(20.dp))
+
+    when (selectedModule) {
+        "APOD" -> ApodViewer()
+        "ASTEROIDS" -> AsteroidViewer()
+        "GAIA" -> GaiaViewer()
+    }
+}
+
+@Composable
+fun ResearchScreen(
+    onSelect: (String) -> Unit,
+    selectedModule: String
+) {
+    SectionTitle(
+        "Research Laboratory",
+        "Live scientific data and observations"
     )
 
     ObservatoryCard(
-        "04", "EXOPLANETS",
-        "Worlds beyond our solar system", "NASA"
+        "01", "ASTRONOMY DATA",
+        "Daily image and astronomical explanation",
+        "NASA",
+        onClick = { onSelect("APOD") }
     )
 
     ObservatoryCard(
-        "05", "ASTEROIDS",
-        "Near-Earth object observations", "NASA"
+        "02", "ORBITAL SCIENCE",
+        "Near-Earth asteroid observations",
+        "NASA",
+        onClick = { onSelect("ASTEROIDS") }
     )
+
+    ObservatoryCard(
+        "03", "STELLAR DATA",
+        "Gaia star catalogue measurements",
+        "ESA",
+        onClick = { onSelect("GAIA") }
+    )
+
+    Spacer(Modifier.height(20.dp))
+
+    when (selectedModule) {
+        "APOD" -> ApodViewer()
+        "ASTEROIDS" -> AsteroidViewer()
+        "GAIA" -> GaiaViewer()
+    }
 }
 
 @Composable
@@ -352,51 +372,318 @@ fun MissionsScreen() {
         "Space agencies and exploration programmes"
     )
 
-    ObservatoryCard(
-        "01", "JAMES WEBB",
-        "Infrared space observatory", "NASA / ESA / CSA"
+    val missions = listOf(
+        Triple("01", "JAMES WEBB", "Infrared space observatory"),
+        Triple("02", "JUICE", "Jupiter and icy moons explorer"),
+        Triple("03", "EUCLID", "Dark matter and dark energy survey"),
+        Triple("04", "ARTEMIS", "Human lunar exploration")
     )
 
-    ObservatoryCard(
-        "02", "JUICE",
-        "Jupiter and its icy moons explorer", "ESA"
-    )
-
-    ObservatoryCard(
-        "03", "EUCLID",
-        "Dark matter and dark energy survey", "ESA"
-    )
-
-    ObservatoryCard(
-        "04", "ARTEMIS",
-        "Human lunar exploration programme", "NASA"
-    )
+    missions.forEach {
+        ObservatoryCard(
+            it.first,
+            it.second,
+            it.third,
+            "NASA / ESA"
+        )
+    }
 }
 
 @Composable
-fun ResearchScreen() {
-    SectionTitle(
-        "Research Laboratory",
-        "Tools for astronomical investigation"
+fun ApodViewer() {
+
+    var data by remember { mutableStateOf<Apod?>(null) }
+    var loading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    val scope = rememberCoroutineScope()
+
+    fun load() {
+        scope.launch {
+            loading = true
+            error = null
+
+            try {
+                data = SpaceData.getApod()
+            } catch (e: Exception) {
+                error = e.message ?: "Unable to load APOD"
+            } finally {
+                loading = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        load()
+    }
+
+    ModuleHeading("NASA APOD", "Astronomy Picture of the Day")
+
+    Button(
+        onClick = { load() },
+        enabled = !loading
+    ) {
+        Text("REFRESH APOD")
+    }
+
+    if (loading) {
+        LoadingIndicator()
+    }
+
+    error?.let {
+        ErrorPanel(it)
+    }
+
+    data?.let { apod ->
+
+        Text(
+            apod.title,
+            fontSize = 21.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Text(
+            apod.date,
+            color = Blue
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        if (apod.imageUrl.isNotBlank()) {
+            AsyncImage(
+                model = apod.imageUrl,
+                contentDescription = apod.title,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(240.dp)
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        Text(
+            apod.explanation,
+            color = Muted,
+            fontSize = 13.sp
+        )
+    }
+}
+
+@Composable
+fun AsteroidViewer() {
+
+    var data by remember {
+        mutableStateOf<List<Asteroid>>(emptyList())
+    }
+
+    var loading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    val scope = rememberCoroutineScope()
+
+    fun load() {
+        scope.launch {
+            loading = true
+            error = null
+
+            try {
+                data = SpaceData.getAsteroids()
+            } catch (e: Exception) {
+                error = e.message ?: "Unable to load asteroids"
+            } finally {
+                loading = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        load()
+    }
+
+    ModuleHeading(
+        "ASTEROID TRACKER",
+        "NASA Near-Earth Objects"
     )
 
-    ObservatoryCard(
-        "01", "STELLAR DATA",
-        "Explore Gaia star measurements", "ESA"
+    Button(
+        onClick = { load() },
+        enabled = !loading
+    ) {
+        Text("REFRESH ASTEROIDS")
+    }
+
+    if (loading) LoadingIndicator()
+
+    error?.let { ErrorPanel(it) }
+
+    data.forEachIndexed { index, asteroid ->
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 5.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Panel
+            )
+        ) {
+            Column(Modifier.padding(14.dp)) {
+
+                Text(
+                    "${index + 1}. ${asteroid.name}",
+                    fontWeight = FontWeight.Bold,
+                    color = Blue
+                )
+
+                Text("Diameter: ${asteroid.diameter} km")
+                Text("Velocity: ${asteroid.velocity} km/h")
+                Text("Distance: ${asteroid.distance} km")
+
+                Text(
+                    if (asteroid.hazardous)
+                        "Potentially hazardous"
+                    else
+                        "Not classified as potentially hazardous",
+                    color = if (asteroid.hazardous)
+                        Color(0xFFFF7777)
+                    else
+                        Color(0xFF8BE0A2)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun GaiaViewer() {
+
+    var data by remember {
+        mutableStateOf<List<GaiaStar>>(emptyList())
+    }
+
+    var loading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    val scope = rememberCoroutineScope()
+
+    fun load() {
+        scope.launch {
+            loading = true
+            error = null
+
+            try {
+                data = SpaceData.getGaiaStars()
+            } catch (e: Exception) {
+                error = e.message ?: "Unable to load Gaia data"
+            } finally {
+                loading = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        load()
+    }
+
+    ModuleHeading(
+        "GAIA STAR CATALOGUE",
+        "ESA Gaia DR3 observations"
     )
 
-    ObservatoryCard(
-        "02", "ORBITAL SCIENCE",
-        "Planetary and asteroid calculations", "ASTROSPHERE"
+    Button(
+        onClick = { load() },
+        enabled = !loading
+    ) {
+        Text("REFRESH STAR DATA")
+    }
+
+    if (loading) LoadingIndicator()
+
+    error?.let { ErrorPanel(it) }
+
+    data.forEach { star ->
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 5.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Panel
+            )
+        ) {
+            Column(Modifier.padding(14.dp)) {
+
+                Text(
+                    "Source ID: ${star.id}",
+                    color = Blue,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text("Right Ascension: ${star.ra}")
+                Text("Declination: ${star.dec}")
+                Text("Magnitude: ${star.magnitude}")
+                Text("Parallax: ${star.parallax}")
+            }
+        }
+    }
+}
+
+@Composable
+fun ModuleHeading(title: String, subtitle: String) {
+    Spacer(Modifier.height(10.dp))
+
+    Text(
+        title,
+        color = Blue,
+        fontSize = 19.sp,
+        fontWeight = FontWeight.Bold
     )
 
-    ObservatoryCard(
-        "03", "SPACE WEATHER",
-        "Investigate solar events", "NASA / ESA"
+    Text(
+        subtitle,
+        color = Muted,
+        fontSize = 12.sp
     )
 
-    ObservatoryCard(
-        "04", "DATA ARCHIVE",
-        "Saved research and observations", "LOCAL"
-    )
+    Spacer(Modifier.height(12.dp))
+}
+
+@Composable
+fun LoadingIndicator() {
+    Row(
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(24.dp),
+            color = Blue,
+            strokeWidth = 3.dp
+        )
+
+        Spacer(Modifier.width(12.dp))
+
+        Text(
+            "Connecting to space data...",
+            color = Muted
+        )
+    }
+
+    Spacer(Modifier.height(12.dp))
+}
+
+@Composable
+fun ErrorPanel(message: String) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF351D2A)
+        )
+    ) {
+        Text(
+            "DATA CONNECTION ERROR\n$message",
+            modifier = Modifier.padding(14.dp),
+            color = Color(0xFFFFAAAA),
+            fontSize = 12.sp
+        )
+    }
 }
