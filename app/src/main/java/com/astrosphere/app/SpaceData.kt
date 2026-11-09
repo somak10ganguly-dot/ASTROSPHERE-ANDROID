@@ -38,8 +38,9 @@ object SpaceData {
 
     private suspend fun get(url: String): String =
         withContext(Dispatchers.IO) {
-            val connection = URL(url).openConnection()
-                as HttpURLConnection
+
+            val connection =
+                URL(url).openConnection() as HttpURLConnection
 
             try {
                 connection.connectTimeout = 15000
@@ -55,53 +56,63 @@ object SpaceData {
                 connection.inputStream.bufferedReader().use {
                     it.readText()
                 }
+
             } finally {
                 connection.disconnect()
             }
         }
 
+    // NASA Astronomy Picture of the Day
     suspend fun getApod(): Apod {
-        val url =
-            "https://science.nasa.gov/wp-json/wp/v2/apod-basic"
 
-        val response = get(url)
-        val item = when {
-            response.trim().startsWith("[") ->
-                JSONArray(response).getJSONObject(0)
-            else -> JSONObject(response)
-        }
+        val url =
+            "https://api.nasa.gov/planetary/apod?api_key=$NASA_KEY"
+
+        val response = JSONObject(get(url))
 
         return Apod(
-            title = item.optString("title", "Astronomy Picture"),
-            explanation = item.optString(
+            title = response.optString(
+                "title",
+                "Astronomy Picture of the Day"
+            ),
+
+            explanation = response.optString(
                 "explanation",
-                item.optString("description", "No explanation available")
+                "No explanation available"
             ),
-            imageUrl = item.optString(
+
+            imageUrl = response.optString(
                 "hdurl",
-                item.optString("url", "")
+                response.optString("url", "")
             ),
-            date = item.optString("date", "")
+
+            date = response.optString("date", "")
         )
     }
 
+    // NASA Near Earth Objects
     suspend fun getAsteroids(): List<Asteroid> {
+
         val url =
             "https://api.nasa.gov/neo/rest/v1/feed" +
             "?api_key=$NASA_KEY"
 
         val response = JSONObject(get(url))
-        val dates = response.getJSONObject("near_earth_objects")
+
+        val dates =
+            response.getJSONObject("near_earth_objects")
 
         val results = mutableListOf<Asteroid>()
 
         val keys = dates.keys()
 
         while (keys.hasNext()) {
+
             val date = keys.next()
             val objects = dates.getJSONArray(date)
 
             for (i in 0 until objects.length()) {
+
                 val item = objects.getJSONObject(i)
 
                 val approach = item
@@ -113,29 +124,42 @@ object SpaceData {
                     .getJSONObject("kilometers")
                     .getDouble("estimated_diameter_max")
 
+                val distance = approach
+                    .getJSONObject("miss_distance")
+                    .optString("kilometers", "0")
+
                 results.add(
                     Asteroid(
-                        name = item.getString("name"),
+                        name = item.optString("name", "Unknown"),
                         diameter = diameter,
+
                         velocity = approach
                             .getJSONObject("relative_velocity")
-                            .getString("kilometers_per_hour"),
-                        distance = approach
-    .getJSONObject("miss_distance")
-    .getString("kilometers"),                    
-                        hazardous = item.getBoolean(
-                            "is_potentially_hazardous_asteroid"
+                            .optString(
+                                "kilometers_per_hour",
+                                "0"
+                            ),
+
+                        distance = distance,
+
+                        hazardous = item.optBoolean(
+                            "is_potentially_hazardous_asteroid",
+                            false
                         )
-                    )             )
+                    )
+                )
             }
         }
 
         return results.sortedBy {
-            it.distance.toDoubleOrNull() ?: Double.MAX_VALUE
+            it.distance.toDoubleOrNull()
+                ?: Double.MAX_VALUE
         }
     }
 
+    // ESA Gaia DR3 Star Catalogue
     suspend fun getGaiaStars(): List<GaiaStar> {
+
         val query = """
             SELECT TOP 15
             source_id, ra, dec,
@@ -152,14 +176,22 @@ object SpaceData {
             "?REQUEST=doQuery&LANG=ADQL&FORMAT=csv&QUERY=$encoded"
 
         val csv = get(url)
-        val lines = csv.lines().filter { it.isNotBlank() }
 
-        if (lines.size < 2) return emptyList()
+        val lines = csv.lines().filter {
+            it.isNotBlank()
+        }
+
+        if (lines.size < 2) {
+            return emptyList()
+        }
 
         return lines.drop(1).mapNotNull { line ->
+
             val columns = line.split(",")
 
-            if (columns.size < 5) return@mapNotNull null
+            if (columns.size < 5) {
+                return@mapNotNull null
+            }
 
             GaiaStar(
                 id = columns[0],
