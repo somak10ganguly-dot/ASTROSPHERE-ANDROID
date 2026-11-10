@@ -779,7 +779,7 @@ private val simulatorSections = listOf(
 )
 
 // =====================================
-// SIMULATOR SCREEN
+// ASTROPHYSICS SIMULATOR SCREEN
 // =====================================
 
 @Composable
