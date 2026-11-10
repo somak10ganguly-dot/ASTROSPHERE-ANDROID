@@ -1,194 +1,308 @@
 
 package com.astrosphere.app
 
-import kotlin.math.PI
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import kotlin.math.pow
-import kotlin.math.sqrt
 
-object AstrophysicsEngine {
-
-    // Fundamental constants — SI units
-    const val G = 6.67430e-11
-    const val SOLAR_MASS = 1.98847e30
-    const val EARTH_MASS = 5.9722e24
-    const val EARTH_RADIUS = 6.371e6
-    const val AU = 1.495978707e11
-    const val SOLAR_RADIUS = 6.957e8
-    const val STEFAN_BOLTZMANN = 5.670374419e-8
-
-    data class OrbitResult(
-        val periodSeconds: Double,
-        val periodDays: Double,
-        val periodYears: Double,
-        val orbitalVelocity: Double,
-        val escapeVelocity: Double
+@Composable
+fun AstrophysicsSimulatorScreen() {
+    val sections = listOf(
+        "Planets",
+        "Stars",
+        "Moons",
+        "Solar Systems",
+        "Asteroids",
+        "Comets",
+        "Dwarf Planets",
+        "Galaxies",
+        "Explanations"
     )
 
-    data class GravityResult(
-        val forceNewtons: Double,
-        val acceleration: Double
-    )
+    var selectedSection by remember { mutableIntStateOf(0) }
+    var parameter by remember { mutableFloatStateOf(1.0f) }
 
-    data class StarResult(
-        val luminosityWatts: Double,
-        val radiusMeters: Double,
-        val massSolar: Double,
-        val temperatureKelvin: Double
-    )
+    val section = sections[selectedSection]
 
-    data class AsteroidResult(
-        val perihelionAU: Double,
-        val aphelionAU: Double,
-        val semiMajorAxisAU: Double,
-        val eccentricity: Double,
-        val periodYears: Double
-    )
-
-    data class GalaxyResult(
-        val orbitalVelocityKmS: Double,
-        val orbitalPeriodYears: Double
-    )
-
-    // Kepler's third law and circular orbital velocity
-    fun calculateOrbit(
-        centralMassKg: Double,
-        orbitalRadiusMeters: Double
-    ): OrbitResult {
-        require(centralMassKg > 0 && orbitalRadiusMeters > 0)
-
-        val period = 2.0 * PI * sqrt(
-            orbitalRadiusMeters.pow(3) /
-                (G * centralMassKg)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Text(
+            "ASTROPHYSICS LAB",
+            style = MaterialTheme.typography.headlineMedium
         )
 
-        val velocity = sqrt(
-            G * centralMassKg / orbitalRadiusMeters
+        Text(
+            "Interactive scientific calculations",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.secondary
         )
 
-        val escape = sqrt(
-            2.0 * G * centralMassKg / orbitalRadiusMeters
-        )
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("SELECT SIMULATION", style = MaterialTheme.typography.titleMedium)
 
-        return OrbitResult(
-            periodSeconds = period,
-            periodDays = period / 86400.0,
-            periodYears = period / (86400.0 * 365.25),
-            orbitalVelocity = velocity,
-            escapeVelocity = escape
-        )
-    }
+                sections.chunked(3).forEach { rowSections ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        rowSections.forEach { name ->
+                            val index = sections.indexOf(name)
 
-    // Newtonian gravity
-    fun calculateGravity(
-        mass1Kg: Double,
-        mass2Kg: Double,
-        distanceMeters: Double
-    ): GravityResult {
-        require(mass1Kg > 0 && mass2Kg > 0 && distanceMeters > 0)
+                            if (selectedSection == index) {
+                                Button(
+                                    onClick = {
+                                        selectedSection = index
+                                        parameter = 1.0f
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(5.dp)
+                                ) {
+                                    Text(name, style = MaterialTheme.typography.labelSmall)
+                                }
+                            } else {
+                                OutlinedButton(
+                                    onClick = {
+                                        selectedSection = index
+                                        parameter = 1.0f
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(5.dp)
+                                ) {
+                                    Text(name, style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
 
-        val force = G * mass1Kg * mass2Kg /
-            distanceMeters.pow(2)
+                        repeat(3 - rowSections.size) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+        }
 
-        val acceleration = force / mass2Kg
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(section.uppercase(), style = MaterialTheme.typography.titleLarge)
 
-        return GravityResult(
-            forceNewtons = force,
-            acceleration = acceleration
-        )
-    }
+                Text(
+                    "Adjust the parameter to recalculate the model.",
+                    style = MaterialTheme.typography.bodySmall
+                )
 
-    // Stellar luminosity using Stefan-Boltzmann law
-    fun calculateStar(
-        radiusSolar: Double,
-        temperatureKelvin: Double,
-        massSolar: Double
-    ): StarResult {
-        require(radiusSolar > 0)
-        require(temperatureKelvin > 0)
-        require(massSolar > 0)
+                Text(
+                    "Parameter: ${"%.2f".format(parameter)}",
+                    style = MaterialTheme.typography.titleMedium
+                )
 
-        val radius = radiusSolar * SOLAR_RADIUS
+                Slider(
+                    value = parameter,
+                    onValueChange = { parameter = it },
+                    valueRange = 0.5f..10f
+                )
 
-        val luminosity = 4.0 * PI *
-            radius.pow(2) *
-            STEFAN_BOLTZMANN *
-            temperatureKelvin.pow(4)
+                when (selectedSection) {
+                    0 -> PlanetModel(parameter)
+                    1 -> StarModel(parameter)
+                    2 -> MoonModel(parameter)
+                    3 -> SolarSystemModel(parameter)
+                    4 -> AsteroidModel(parameter)
+                    5 -> CometModel(parameter)
+                    6 -> DwarfPlanetModel(parameter)
+                    7 -> GalaxyModel(parameter)
+                    8 -> GravityModel(parameter)
+                }
+            }
+        }
 
-        return StarResult(
-            luminosityWatts = luminosity,
-            radiusMeters = radius,
-            massSolar = massSolar,
-            temperatureKelvin = temperatureKelvin
-        )
-    }
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("MODEL INFORMATION", style = MaterialTheme.typography.titleMedium)
 
-    // Asteroid orbit from perihelion and aphelion
-    fun calculateAsteroid(
-        perihelionAU: Double,
-        aphelionAU: Double
-    ): AsteroidResult {
-        require(perihelionAU > 0)
-        require(aphelionAU >= perihelionAU)
+                Text(
+                    when (selectedSection) {
+                        0 -> "Planetary orbital calculations use Kepler's third law, assuming a circular orbit around the Sun."
+                        1 -> "Stellar luminosity is calculated using the Stefan-Boltzmann law."
+                        2 -> "The moon model calculates orbital motion around Earth."
+                        3 -> "The solar-system model calculates orbital periods and velocities around the Sun."
+                        4 -> "The asteroid model estimates orbital eccentricity and period from perihelion and aphelion."
+                        5 -> "The comet model estimates an elliptical orbit around the Sun."
+                        6 -> "The dwarf-planet model estimates orbital properties around the Sun."
+                        7 -> "The galaxy model approximates orbital velocity using enclosed mass treated as a central point mass."
+                        else -> "Newton's law of universal gravitation calculates the attractive force between two masses."
+                    },
+                    style = MaterialTheme.typography.bodyMedium
+                )
 
-        val semiMajor = (perihelionAU + aphelionAU) / 2.0
-
-        val eccentricity =
-            (aphelionAU - perihelionAU) /
-                (aphelionAU + perihelionAU)
-
-        // Kepler's third law for an orbit around the Sun
-        val periodYears = sqrt(semiMajor.pow(3))
-
-        return AsteroidResult(
-            perihelionAU = perihelionAU,
-            aphelionAU = aphelionAU,
-            semiMajorAxisAU = semiMajor,
-            eccentricity = eccentricity,
-            periodYears = periodYears
-        )
-    }
-
-    // Simplified galaxy rotation model:
-    // enclosed mass treated as a point mass
-    fun calculateGalaxyRotation(
-        enclosedMassSolar: Double,
-        radiusLightYears: Double
-    ): GalaxyResult {
-        require(enclosedMassSolar > 0)
-        require(radiusLightYears > 0)
-
-        val mass = enclosedMassSolar * SOLAR_MASS
-        val radius = radiusLightYears * 9.4607e15
-
-        val velocity = sqrt(G * mass / radius)
-
-        val period = 2.0 * PI * radius / velocity
-
-        return GalaxyResult(
-            orbitalVelocityKmS = velocity / 1000.0,
-            orbitalPeriodYears =
-                period / (86400.0 * 365.25)
-        )
-    }
-
-    // Convert metres per second to kilometres per second
-    fun kmPerSecond(metersPerSecond: Double): Double {
-        return metersPerSecond / 1000.0
-    }
-
-    // Convert seconds into a readable duration
-    fun formatDuration(seconds: Double): String {
-        val days = seconds / 86400.0
-
-        return when {
-            days >= 365.25 ->
-                "%.3f years".format(days / 365.25)
-
-            days >= 1 ->
-                "%.2f days".format(days)
-
-            else ->
-                "%.2f hours".format(seconds / 3600.0)
+                Text(
+                    "These are idealised models. Real astronomical systems may require additional variables and numerical methods.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun ResultLine(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, modifier = Modifier.weight(1f))
+        Text(value, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun PlanetModel(value: Float) {
+    val radiusAU = value.toDouble()
+    val result = AstrophysicsEngine.calculateOrbit(
+        AstrophysicsEngine.SOLAR_MASS,
+        radiusAU * AstrophysicsEngine.AU
+    )
+
+    ResultLine("Orbital radius", "$radiusAU AU")
+    ResultLine("Orbital period", "${"%.3f".format(result.periodYears)} years")
+    ResultLine("Orbital velocity", "${"%.2f".format(result.orbitalVelocity / 1000)} km/s")
+    ResultLine("Escape velocity", "${"%.2f".format(result.escapeVelocity / 1000)} km/s")
+}
+
+@Composable
+private fun StarModel(value: Float) {
+    val radius = value.toDouble()
+    val temperature = 3000.0 + value * 900.0
+
+    val result = AstrophysicsEngine.calculateStar(
+        radiusSolar = radius,
+        temperatureKelvin = temperature,
+        massSolar = radius.pow(0.8)
+    )
+
+    ResultLine("Stellar radius", "$radius solar radii")
+    ResultLine("Surface temperature", "${temperature.toInt()} K")
+    ResultLine("Estimated luminosity", "${"%.3e".format(result.luminosityWatts)} W")
+    ResultLine("Stellar mass input", "${"%.2f".format(result.massSolar)} solar masses")
+}
+
+@Composable
+private fun MoonModel(value: Float) {
+    val distanceKm = 384400.0 * value
+    val result = AstrophysicsEngine.calculateOrbit(
+        AstrophysicsEngine.EARTH_MASS,
+        distanceKm * 1000.0
+    )
+
+    ResultLine("Orbital distance", "${"%.0f".format(distanceKm)} km")
+    ResultLine("Orbital period", "${"%.2f".format(result.periodDays)} days")
+    ResultLine("Orbital velocity", "${"%.3f".format(result.orbitalVelocity / 1000)} km/s")
+    ResultLine("Escape velocity", "${"%.3f".format(result.escapeVelocity / 1000)} km/s")
+}
+
+@Composable
+private fun SolarSystemModel(value: Float) {
+    val distanceAU = value.toDouble()
+    val result = AstrophysicsEngine.calculateOrbit(
+        AstrophysicsEngine.SOLAR_MASS,
+        distanceAU * AstrophysicsEngine.AU
+    )
+
+    ResultLine("Distance from Sun", "$distanceAU AU")
+    ResultLine("Orbital period", "${"%.3f".format(result.periodYears)} years")
+    ResultLine("Orbital speed", "${"%.2f".format(result.orbitalVelocity / 1000)} km/s")
+}
+
+@Composable
+private fun AsteroidModel(value: Float) {
+    val perihelion = value.toDouble()
+    val aphelion = perihelion + 0.5
+
+    val result = AstrophysicsEngine.calculateAsteroid(
+        perihelionAU = perihelion,
+        aphelionAU = aphelion
+    )
+
+    ResultLine("Perihelion", "${"%.2f".format(result.perihelionAU)} AU")
+    ResultLine("Aphelion", "${"%.2f".format(result.aphelionAU)} AU")
+    ResultLine("Semi-major axis", "${"%.2f".format(result.semiMajorAxisAU)} AU")
+    ResultLine("Eccentricity", "${"%.4f".format(result.eccentricity)}")
+    ResultLine("Orbital period", "${"%.3f".format(result.periodYears)} years")
+}
+
+@Composable
+private fun CometModel(value: Float) {
+    val perihelion = (value * 0.2).coerceAtLeast(0.1)
+    val aphelion = perihelion + 10.0
+
+    val result = AstrophysicsEngine.calculateAsteroid(
+        perihelionAU = perihelion,
+        aphelionAU = aphelion
+    )
+
+    ResultLine("Perihelion", "${"%.2f".format(result.perihelionAU)} AU")
+    ResultLine("Aphelion", "${"%.2f".format(result.aphelionAU)} AU")
+    ResultLine("Eccentricity", "${"%.4f".format(result.eccentricity)}")
+    ResultLine("Orbital period", "${"%.2f".format(result.periodYears)} years")
+}
+
+@Composable
+private fun DwarfPlanetModel(value: Float) {
+    val distanceAU = 30.0 + value * 2.0
+    val result = AstrophysicsEngine.calculateOrbit(
+        AstrophysicsEngine.SOLAR_MASS,
+        distanceAU * AstrophysicsEngine.AU
+    )
+
+    ResultLine("Orbital distance", "${"%.2f".format(distanceAU)} AU")
+    ResultLine("Orbital period", "${"%.2f".format(result.periodYears)} years")
+    ResultLine("Orbital velocity", "${"%.3f".format(result.orbitalVelocity / 1000)} km/s")
+}
+
+@Composable
+private fun GalaxyModel(value: Float) {
+    val radius = value * 1000.0
+
+    val result = AstrophysicsEngine.calculateGalaxyRotation(
+        enclosedMassSolar = 1.0e11,
+        radiusLightYears = radius
+    )
+
+    ResultLine("Galactic radius", "$radius light-years")
+    ResultLine("Enclosed mass", "100 billion solar masses")
+    ResultLine("Orbital velocity", "${"%.2f".format(result.orbitalVelocityKmS)} km/s")
+    ResultLine("Orbital period", "${"%.2e".format(result.orbitalPeriodYears)} years")
+}
+
+@Composable
+private fun GravityModel(value: Float) {
+    val distance = AstrophysicsEngine.EARTH_RADIUS * value
+    val result = AstrophysicsEngine.calculateGravity(
+        mass1Kg = AstrophysicsEngine.EARTH_MASS,
+        mass2Kg = 1000.0,
+        distanceMeters = distance
+    )
+
+    ResultLine("First mass", "Earth")
+    ResultLine("Second mass", "1,000 kg")
+    ResultLine("Distance", "${"%.2f".format(distance / 1000)} km")
+    ResultLine("Gravitational force", "${"%.3f".format(result.forceNewtons)} N")
+    ResultLine("Acceleration", "${"%.4f".format(result.acceleration)} m/s²")
 }
