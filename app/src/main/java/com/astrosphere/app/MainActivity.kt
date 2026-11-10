@@ -4,21 +4,28 @@ package com.astrosphere.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 private val SpaceBlack = Color(0xFF070B16)
 private val Panel = Color(0xFF111C30)
@@ -26,15 +33,22 @@ private val Blue = Color(0xFF55B8FF)
 private val Muted = Color(0xFF9AABC4)
 private val Green = Color(0xFF8BE0A2)
 private val Red = Color(0xFFFF7777)
+private val Purple = Color(0xFFB69CFF)
+
+// =====================================
+// ACTIVITY
+// =====================================
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            AstroSphereApp()
-        }
+        setContent { AstroSphereApp() }
     }
 }
+
+// =====================================
+// MAIN APPLICATION
+// =====================================
 
 @Composable
 fun AstroSphereApp() {
@@ -58,23 +72,23 @@ fun AstroSphereApp() {
                     containerColor = Color(0xFF0C1424)
                 ) {
                     val names = listOf(
-                        "Home", "Explore", "Missions", "Research"
+                        "Home", "Explore", "Missions",
+                        "Simulator", "Research"
                     )
 
-                    val symbols = listOf("⌂", "◎", "◈", "⌘")
+                    val symbols = listOf(
+                        "⌂", "◎", "◈", "◉", "⌘"
+                    )
 
                     names.forEachIndexed { index, name ->
                         NavigationBarItem(
                             selected = selected == index,
                             onClick = { selected = index },
                             icon = {
-                                Text(
-                                    symbols[index],
-                                    fontSize = 21.sp
-                                )
+                                Text(symbols[index], fontSize = 21.sp)
                             },
                             label = {
-                                Text(name, fontSize = 10.sp)
+                                Text(name, fontSize = 9.sp)
                             }
                         )
                     }
@@ -91,7 +105,6 @@ fun AstroSphereApp() {
             ) {
 
                 when (selected) {
-
                     0 -> HomeScreen(
                         onSelect = {
                             module = it
@@ -106,7 +119,9 @@ fun AstroSphereApp() {
 
                     2 -> MissionsScreen()
 
-                    3 -> ResearchScreen(
+                    3 -> SimulatorScreen()
+
+                    4 -> ResearchScreen(
                         selectedModule = module,
                         onSelect = { module = it }
                     )
@@ -205,10 +220,7 @@ fun HomeScreen(onSelect: (String) -> Unit) {
 
     systems.forEach {
         ObservatoryCard(
-            it.first,
-            it.second,
-            it.third,
-            "OPEN MODULE"
+            it.first, it.second, it.third, "OPEN MODULE"
         ) {
             onSelect(it.second)
         }
@@ -216,7 +228,7 @@ fun HomeScreen(onSelect: (String) -> Unit) {
 }
 
 // =====================================
-// REUSABLE OBSERVATORY CARD
+// REUSABLE CARD
 // =====================================
 
 @Composable
@@ -269,11 +281,7 @@ fun ObservatoryCard(
 
                 Spacer(Modifier.height(4.dp))
 
-                Text(
-                    source,
-                    color = Blue,
-                    fontSize = 10.sp
-                )
+                Text(source, color = Blue, fontSize = 10.sp)
             }
 
             Text("›", color = Blue, fontSize = 24.sp)
@@ -305,11 +313,7 @@ fun SectionTitle(title: String, subtitle: String) {
 
     Spacer(Modifier.height(6.dp))
 
-    Text(
-        subtitle,
-        color = Muted,
-        fontSize = 13.sp
-    )
+    Text(subtitle, color = Muted, fontSize = 13.sp)
 
     Spacer(Modifier.height(20.dp))
 }
@@ -341,10 +345,7 @@ fun ExploreScreen(
 
     modules.forEach {
         ObservatoryCard(
-            it.first,
-            it.second,
-            it.third,
-            "SELECT MODULE"
+            it.first, it.second, it.third, "SELECT MODULE"
         ) {
             onSelect(it.second)
         }
@@ -382,33 +383,25 @@ fun ResearchScreen(
         "01", "SPACE WEATHER",
         "Solar flares and geomagnetic events",
         "NASA DONKI"
-    ) {
-        onSelect("WEATHER")
-    }
+    ) { onSelect("WEATHER") }
 
     ObservatoryCard(
         "02", "ORBITAL SCIENCE",
         "Asteroid orbital observations",
         "NASA NEO"
-    ) {
-        onSelect("ASTEROIDS")
-    }
+    ) { onSelect("ASTEROIDS") }
 
     ObservatoryCard(
         "03", "STELLAR SCIENCE",
         "Star positions and measurements",
         "ESA GAIA"
-    ) {
-        onSelect("GAIA")
-    }
+    ) { onSelect("GAIA") }
 
     ObservatoryCard(
         "04", "EARTH SCIENCE",
         "Earth observation imagery",
         "NASA EPIC"
-    ) {
-        onSelect("EPIC")
-    }
+    ) { onSelect("EPIC") }
 
     Spacer(Modifier.height(20.dp))
 
@@ -424,63 +417,899 @@ fun ResearchScreen(
 }
 
 // =====================================
-// MISSION CENTRE
+// MISSION DATA
+// =====================================
+
+data class MissionInfo(
+    val number: String,
+    val name: String,
+    val agency: String,
+    val spacecraft: String,
+    val objective: String,
+    val destination: String,
+    val science: String,
+    val status: String
+)
+
+private val missionList = listOf(
+
+    MissionInfo(
+        "01",
+        "James Webb Space Telescope",
+        "NASA / ESA / CSA",
+        "JWST",
+        "Observe the early Universe, distant galaxies, stars and exoplanet atmospheres.",
+        "Sun-Earth L2 region",
+        "Infrared astronomy, galaxy evolution and exoplanet spectroscopy.",
+        "ACTIVE"
+    ),
+
+    MissionInfo(
+        "02",
+        "JUICE",
+        "ESA",
+        "Jupiter Icy Moons Explorer",
+        "Investigate Jupiter and its ocean-bearing icy moons.",
+        "Jupiter system",
+        "Study Ganymede, Callisto, Europa and Jupiter's magnetosphere.",
+        "IN TRANSIT"
+    ),
+
+    MissionInfo(
+        "03",
+        "Euclid",
+        "ESA",
+        "Euclid Space Telescope",
+        "Map the geometry of the dark Universe.",
+        "Sun-Earth L2 region",
+        "Measure galaxy shapes, clustering and cosmic expansion.",
+        "ACTIVE"
+    ),
+
+    MissionInfo(
+        "04",
+        "Artemis",
+        "NASA",
+        "Orion and Space Launch System",
+        "Return humans to the Moon and develop sustainable lunar exploration.",
+        "Moon",
+        "Lunar exploration, habitation and preparation for Mars missions.",
+        "PROGRAMME"
+    ),
+
+    MissionInfo(
+        "05",
+        "Parker Solar Probe",
+        "NASA",
+        "Parker Solar Probe",
+        "Investigate the Sun's corona and solar wind.",
+        "Solar corona",
+        "Study magnetic fields, energetic particles and coronal heating.",
+        "ACTIVE"
+    ),
+
+    MissionInfo(
+        "06",
+        "Europa Clipper",
+        "NASA",
+        "Europa Clipper",
+        "Investigate whether Jupiter's moon Europa has conditions suitable for life.",
+        "Jupiter / Europa",
+        "Study Europa's ice shell, ocean, composition and geology.",
+        "IN TRANSIT"
+    )
+)
+
+// =====================================
+// MISSION CONTROL
 // =====================================
 
 @Composable
 fun MissionsScreen() {
 
+    var selectedMission by remember {
+        mutableStateOf<MissionInfo?>(null)
+    }
+
     SectionTitle(
-        "Mission Centre",
-        "Space agencies and exploration programmes"
+        "Mission Control",
+        "NASA and ESA exploration programmes"
     )
 
-    val missions = listOf(
-        Triple("01", "JAMES WEBB", "Infrared space observatory"),
-        Triple("02", "JUICE", "Jupiter and icy moons explorer"),
-        Triple("03", "EUCLID", "Dark matter and dark energy survey"),
-        Triple("04", "ARTEMIS", "Human lunar exploration"),
-        Triple("05", "PARKER SOLAR PROBE", "Solar corona investigation"),
-        Triple("06", "EUROPA CLIPPER", "Jupiter's moon Europa")
-    )
+    if (selectedMission == null) {
 
-    missions.forEach {
         Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 5.dp),
             colors = CardDefaults.cardColors(
-                containerColor = Panel
-            )
+                containerColor = Color(0xFF132C4B)
+            ),
+            shape = RoundedCornerShape(18.dp)
         ) {
-            Column(Modifier.padding(15.dp)) {
-
+            Column(Modifier.padding(18.dp)) {
                 Text(
-                    it.second,
+                    "MISSION DATABASE",
                     color = Blue,
                     fontWeight = FontWeight.Bold
                 )
 
-                Spacer(Modifier.height(5.dp))
+                Spacer(Modifier.height(8.dp))
 
                 Text(
-                    it.third,
-                    color = Muted,
+                    "Explore spacecraft, destinations and scientific objectives.",
+                    color = Color.LightGray,
+                    fontSize = 13.sp
+                )
+
+                Spacer(Modifier.height(12.dp))
+
+                Text(
+                    "${missionList.size} MISSION PROFILES",
+                    color = Green,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
+
+        missionList.forEach { mission ->
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp)
+                    .clickable {
+                        selectedMission = mission
+                    },
+                colors = CardDefaults.cardColors(
+                    containerColor = Panel
+                ),
+                shape = RoundedCornerShape(15.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+
+                    Text(
+                        mission.number,
+                        color = Blue,
+                        fontSize = 23.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(Modifier.width(14.dp))
+
+                    Column(Modifier.weight(1f)) {
+
+                        Text(
+                            mission.name,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Text(
+                            mission.agency,
+                            color = Muted,
+                            fontSize = 11.sp
+                        )
+
+                        Text(
+                            mission.status,
+                            color = Green,
+                            fontSize = 10.sp
+                        )
+                    }
+
+                    Text("›", color = Blue, fontSize = 25.sp)
+                }
+            }
+        }
+
+    } else {
+
+        val mission = selectedMission!!
+
+        TextButton(
+            onClick = { selectedMission = null }
+        ) {
+            Text("← ALL MISSIONS", color = Blue)
+        }
+
+        Text(
+            mission.name,
+            fontSize = 25.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        Text(
+            mission.agency,
+            color = Blue,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(Modifier.height(15.dp))
+
+        MissionInfoCard("MISSION STATUS", mission.status)
+        MissionInfoCard("SPACECRAFT", mission.spacecraft)
+        MissionInfoCard("DESTINATION", mission.destination)
+        MissionInfoCard("MISSION OBJECTIVE", mission.objective)
+        MissionInfoCard("SCIENTIFIC PROGRAMME", mission.science)
+    }
+}
+
+@Composable
+fun MissionInfoCard(title: String, content: String) {
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Panel
+        ),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+
+            Text(
+                title,
+                color = Blue,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                content,
+                fontSize = 14.sp,
+                color = Color.White
+            )
+        }
+    }
+}
+
+// =====================================
+// NINE-SECTION SIMULATOR DATA
+// =====================================
+
+data class SimulatorSection(
+    val number: String,
+    val name: String,
+    val description: String,
+    val parameter: String,
+    val minimum: String,
+    val maximum: String,
+    val explanation: String
+)
+
+private val simulatorSections = listOf(
+
+    SimulatorSection(
+        "01",
+        "PLANETS",
+        "Planetary rotation, revolution and orbital motion.",
+        "Orbital speed",
+        "Slow",
+        "Fast",
+        "Change orbital speed to observe how quickly a planet travels around its star."
+    ),
+
+    SimulatorSection(
+        "02",
+        "STARS",
+        "Stellar temperature, colour and luminosity.",
+        "Temperature",
+        "Cool",
+        "Hot",
+        "Explore how stellar temperature changes a star's apparent colour and radiation."
+    ),
+
+    SimulatorSection(
+        "03",
+        "MOONS",
+        "Natural satellites and planetary orbital systems.",
+        "Orbital distance",
+        "Near",
+        "Far",
+        "Change a moon's orbital distance and observe its path around a planet."
+    ),
+
+    SimulatorSection(
+        "04",
+        "SOLAR SYSTEMS",
+        "Explore multi-planet orbital arrangements.",
+        "System scale",
+        "Compact",
+        "Expanded",
+        "Adjust the scale of a model planetary system."
+    ),
+
+    SimulatorSection(
+        "05",
+        "ASTEROIDS",
+        "Study rocky bodies and their trajectories.",
+        "Trajectory angle",
+        "Low",
+        "High",
+        "Change the direction of a model asteroid's path."
+    ),
+
+    SimulatorSection(
+        "06",
+        "COMETS",
+        "Explore comet orbits and solar approach.",
+        "Solar distance",
+        "Near",
+        "Far",
+        "Change the model comet's distance from the Sun."
+    ),
+
+    SimulatorSection(
+        "07",
+        "DWARF PLANETS",
+        "Compare small planetary bodies.",
+        "Body size",
+        "Small",
+        "Large",
+        "Adjust the displayed relative size of a dwarf planet."
+    ),
+
+    SimulatorSection(
+        "08",
+        "GALAXIES",
+        "Explore galaxy structures and rotation.",
+        "Rotation",
+        "Slow",
+        "Fast",
+        "Change the rotation rate of the model galaxy."
+    ),
+
+    SimulatorSection(
+        "09",
+        "EXPLANATIONS",
+        "Scientific concepts and interactive learning.",
+        "Learning level",
+        "Basic",
+        "Advanced",
+        "Explore the scientific explanation associated with the selected model."
+    )
+)
+
+// =====================================
+// SIMULATOR SCREEN
+// =====================================
+
+@Composable
+fun SimulatorScreen() {
+
+    var selectedIndex by remember {
+        mutableIntStateOf(0)
+    }
+
+    var parameter by remember {
+        mutableFloatStateOf(50f)
+    }
+
+    var animationRunning by remember {
+        mutableStateOf(true)
+    }
+
+    var showExplanation by remember {
+        mutableStateOf(true)
+    }
+
+    val section = simulatorSections[selectedIndex]
+
+    SectionTitle(
+        "UNIVERSE SIMULATOR",
+        "Nine interactive scientific environments"
+    )
+
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF132C4B)
+        ),
+        shape = RoundedCornerShape(18.dp)
+    ) {
+        Column(Modifier.padding(18.dp)) {
+
+            Text(
+                "ASTROPHYSICS LAB",
+                color = Blue,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                "Explore. Adjust. Observe.",
+                fontSize = 23.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                "Interactive conceptual models of astronomical systems.",
+                color = Muted,
+                fontSize = 12.sp
+            )
+        }
+    }
+
+    Spacer(Modifier.height(20.dp))
+
+    Text(
+        "SELECT SIMULATION",
+        color = Blue,
+        fontWeight = FontWeight.Bold
+    )
+
+    Spacer(Modifier.height(10.dp))
+
+    simulatorSections.forEachIndexed { index, item ->
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+                .clickable {
+                    selectedIndex = index
+                    parameter = 50f
+                },
+            colors = CardDefaults.cardColors(
+                containerColor = if (selectedIndex == index)
+                    Color(0xFF18385A)
+                else
+                    Panel
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+
+                Text(
+                    item.number,
+                    color = Blue,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+
+                Spacer(Modifier.width(13.dp))
+
+                Column(Modifier.weight(1f)) {
+
+                    Text(
+                        item.name,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        item.description,
+                        color = Muted,
+                        fontSize = 10.sp
+                    )
+                }
+
+                if (selectedIndex == index) {
+                    Text("ACTIVE", color = Green, fontSize = 10.sp)
+                }
+            }
+        }
+    }
+
+    Spacer(Modifier.height(22.dp))
+
+    Divider(color = Color(0xFF263B57))
+
+    Spacer(Modifier.height(18.dp))
+
+    Text(
+        "${section.number} / ${section.name}",
+        color = Blue,
+        fontSize = 22.sp,
+        fontWeight = FontWeight.Bold
+    )
+
+    Text(
+        section.description,
+        color = Muted,
+        fontSize = 12.sp
+    )
+
+    Spacer(Modifier.height(18.dp))
+
+    // Scientific visualisation
+
+    OrbitalVisualisation(
+        sectionIndex = selectedIndex,
+        parameter = parameter,
+        animationRunning = animationRunning
+    )
+
+    Spacer(Modifier.height(15.dp))
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            "SIMULATION CONTROL",
+            color = Blue,
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp
+        )
+
+        Spacer(Modifier.weight(1f))
+
+        Text(
+            if (animationRunning) "RUNNING" else "PAUSED",
+            color = if (animationRunning) Green else Red,
+            fontSize = 10.sp
+        )
+    }
+
+    Spacer(Modifier.height(12.dp))
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(section.minimum, color = Muted, fontSize = 11.sp)
+        Text(section.parameter, color = Color.White, fontWeight = FontWeight.Bold)
+        Text(section.maximum, color = Muted, fontSize = 11.sp)
+    }
+
+    Slider(
+        value = parameter,
+        onValueChange = { parameter = it },
+        valueRange = 0f..100f,
+        colors = SliderDefaults.colors(
+            thumbColor = Blue,
+            activeTrackColor = Blue,
+            inactiveTrackColor = Panel
+        )
+    )
+
+    Text(
+        "PARAMETER VALUE: ${parameter.toInt()}%",
+        color = Green,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold
+    )
+
+    Spacer(Modifier.height(12.dp))
+
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+
+        Button(
+            onClick = {
+                animationRunning = !animationRunning
+            },
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                if (animationRunning) "PAUSE" else "RESUME"
+            )
+        }
+
+        OutlinedButton(
+            onClick = {
+                parameter = 50f
+                animationRunning = true
+            },
+            modifier = Modifier.weight(1f)
+        ) {
+            Text("RESET")
+        }
+    }
+
+    Spacer(Modifier.height(18.dp))
+
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = Panel
+        ),
+        shape = RoundedCornerShape(15.dp)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "SCIENTIFIC EXPLANATION",
+                    color = Blue,
+                    fontWeight = FontWeight.Bold,
                     fontSize = 12.sp
                 )
 
+                Spacer(Modifier.weight(1f))
+
+                TextButton(
+                    onClick = {
+                        showExplanation = !showExplanation
+                    }
+                ) {
+                    Text(
+                        if (showExplanation) "HIDE" else "SHOW",
+                        color = Blue
+                    )
+                }
+            }
+
+            if (showExplanation) {
                 Text(
-                    "SPACE MISSION",
-                    color = Green,
-                    fontSize = 10.sp
+                    section.explanation,
+                    color = Muted,
+                    fontSize = 13.sp
                 )
+
+                Spacer(Modifier.height(10.dp))
+
+                Text(
+                    "Model parameter: ${parameter.toInt()}%",
+                    color = Green,
+                    fontSize = 12.sp
+                )
+            }
+        }
+    }
+
+    Spacer(Modifier.height(15.dp))
+
+    Text(
+        "MODEL NOTE",
+        color = Purple,
+        fontWeight = FontWeight.Bold,
+        fontSize = 11.sp
+    )
+
+    Text(
+        "This version uses conceptual visual models. It is not a numerical N-body solver or a validated astrophysical prediction engine.",
+        color = Muted,
+        fontSize = 11.sp
+    )
+}
+
+// =====================================
+// ORBITAL VISUALISATION
+// =====================================
+
+@Composable
+fun OrbitalVisualisation(
+    sectionIndex: Int,
+    parameter: Float,
+    animationRunning: Boolean
+) {
+
+    var angle by remember(sectionIndex) {
+        mutableFloatStateOf(0f)
+    }
+
+    LaunchedEffect(
+        sectionIndex,
+        parameter,
+        animationRunning
+    ) {
+        if (animationRunning) {
+            while (true) {
+                angle += (1.0f + parameter / 20f)
+                if (angle >= 360f) angle -= 360f
+                kotlinx.coroutines.delay(35)
+            }
+        }
+    }
+
+    val radius = 0.25f + parameter / 250f
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(250.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF030916)
+        ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Canvas(
+            modifier = Modifier.fillMaxSize()
+        ) {
+
+            val centerX = size.width / 2f
+            val centerY = size.height / 2f
+            val center = Offset(centerX, centerY)
+
+            val orbitRadius = size.minDimension * radius.coerceIn(0.25f, 0.48f)
+
+            val planetAngle = angle * PI.toFloat() / 180f
+
+            val planetX =
+                centerX + cos(planetAngle) * orbitRadius
+
+            val planetY =
+                centerY + sin(planetAngle) * orbitRadius
+
+            // Background stars
+
+            for (i in 0 until 45) {
+                val x = (i * 83f % size.width)
+                val y = (i * 47f % size.height)
+
+                drawCircle(
+                    color = Color(0xFF637C9C),
+                    radius = 1.5f,
+                    center = Offset(x, y)
+                )
+            }
+
+            when (sectionIndex) {
+
+                // Planets, moons, solar systems,
+                // asteroids, comets and dwarf planets
+
+                0, 2, 3, 4, 5, 6 -> {
+
+                    drawCircle(
+                        color = Blue.copy(alpha = 0.65f),
+                        radius = orbitRadius,
+                        center = center,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                            width = 2f
+                        )
+                    )
+
+                    drawCircle(
+                        color = Color(0xFFFFB347),
+                        radius = 15f,
+                        center = center
+                    )
+
+                    drawCircle(
+                        color = Green,
+                        radius = if (sectionIndex == 6) 6f else 9f,
+                        center = Offset(planetX, planetY)
+                    )
+
+                    if (sectionIndex == 2) {
+                        drawCircle(
+                            color = Color(0xFFB69CFF),
+                            radius = 4f,
+                            center = Offset(
+                                planetX + 16f,
+                                planetY
+                            )
+                        )
+                    }
+
+                    if (sectionIndex == 4 || sectionIndex == 5) {
+                        drawCircle(
+                            color = Red,
+                            radius = 4f,
+                            center = Offset(planetX, planetY)
+                        )
+                    }
+                }
+
+                // Stars
+
+                1 -> {
+
+                    drawCircle(
+                        color = Color(0xFFFFB347).copy(alpha = 0.12f),
+                        radius = 65f,
+                        center = center
+                    )
+
+                    drawCircle(
+                        color = Color(
+                            red = 1f,
+                            green = 0.4f + parameter / 250f,
+                            blue = 0.1f
+                        ),
+                        radius = 28f,
+                        center = center
+                    )
+
+                    for (i in 0 until 8) {
+                        val a = i * PI.toFloat() / 4f
+                        val x = centerX + cos(a) * 43f
+                        val y = centerY + sin(a) * 43f
+
+                        drawLine(
+                            color = Color(0xFFFFB347),
+                            start = center,
+                            end = Offset(x, y),
+                            strokeWidth = 2f
+                        )
+                    }
+                }
+
+                // Galaxies
+
+                7 -> {
+
+                    for (i in 0 until 4) {
+                        val r = 30f + i * 20f
+
+                        drawCircle(
+                            color = Purple.copy(alpha = 0.65f),
+                            radius = r,
+                            center = center,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                width = 3f
+                            )
+                        )
+                    }
+
+                    for (i in 0 until 16) {
+                        val a = (
+                            i * 22.5f + angle
+                        ) * PI.toFloat() / 180f
+
+                        val r = 35f + (i % 4) * 16f
+
+                        drawCircle(
+                            color = Blue,
+                            radius = 3f,
+                            center = Offset(
+                                centerX + cos(a) * r,
+                                centerY + sin(a) * r
+                            )
+                        )
+                    }
+
+                    drawCircle(
+                        color = Color.White,
+                        radius = 8f,
+                        center = center
+                    )
+                }
+
+                // Explanations
+
+                8 -> {
+
+                    drawCircle(
+                        color = Blue.copy(alpha = 0.15f),
+                        radius = 75f,
+                        center = center
+                    )
+
+                    drawCircle(
+                        color = Blue,
+                        radius = 38f,
+                        center = center,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                            width = 3f
+                        )
+                    )
+
+                    drawCircle(
+                        color = Green,
+                        radius = 10f,
+                        center = center
+                    )
+
+                    drawLine(
+                        color = Purple,
+                        start = Offset(centerX - 85f, centerY),
+                        end = Offset(centerX + 85f, centerY),
+                        strokeWidth = 2f
+                    )
+                }
             }
         }
     }
 }
 
 // =====================================
-// 1. APOD VIEWER
+// APOD VIEWER
 // =====================================
 
 @Composable
@@ -496,7 +1325,6 @@ fun ApodViewer() {
         scope.launch {
             loading = true
             error = null
-
             try {
                 data = SpaceData.getApod()
             } catch (e: Exception) {
@@ -511,25 +1339,16 @@ fun ApodViewer() {
 
     ModuleHeading("NASA APOD", "Astronomy Picture of the Day")
 
-    Button(
-        onClick = { load() },
-        enabled = !loading
-    ) {
+    Button(onClick = { load() }, enabled = !loading) {
         Text("REFRESH APOD")
     }
 
     if (loading) LoadingIndicator()
-
     error?.let { ErrorPanel(it) }
 
     data?.let { apod ->
 
-        Text(
-            apod.title,
-            fontSize = 21.sp,
-            fontWeight = FontWeight.Bold
-        )
-
+        Text(apod.title, fontSize = 21.sp, fontWeight = FontWeight.Bold)
         Text(apod.date, color = Blue)
 
         Spacer(Modifier.height(12.dp))
@@ -544,25 +1363,18 @@ fun ApodViewer() {
 
         Spacer(Modifier.height(12.dp))
 
-        Text(
-            apod.explanation,
-            color = Muted,
-            fontSize = 13.sp
-        )
+        Text(apod.explanation, color = Muted, fontSize = 13.sp)
     }
 }
 
 // =====================================
-// 2. ASTEROID VIEWER
+// ASTEROID VIEWER
 // =====================================
 
 @Composable
 fun AsteroidViewer() {
 
-    var data by remember {
-        mutableStateOf<List<Asteroid>>(emptyList())
-    }
-
+    var data by remember { mutableStateOf<List<Asteroid>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -572,7 +1384,6 @@ fun AsteroidViewer() {
         scope.launch {
             loading = true
             error = null
-
             try {
                 data = SpaceData.getAsteroids()
             } catch (e: Exception) {
@@ -585,20 +1396,13 @@ fun AsteroidViewer() {
 
     LaunchedEffect(Unit) { load() }
 
-    ModuleHeading(
-        "ASTEROID TRACKER",
-        "NASA Near-Earth Objects"
-    )
+    ModuleHeading("ASTEROID TRACKER", "NASA Near-Earth Objects")
 
-    Button(
-        onClick = { load() },
-        enabled = !loading
-    ) {
+    Button(onClick = { load() }, enabled = !loading) {
         Text("REFRESH ASTEROIDS")
     }
 
     if (loading) LoadingIndicator()
-
     error?.let { ErrorPanel(it) }
 
     data.take(25).forEachIndexed { index, asteroid ->
@@ -607,9 +1411,7 @@ fun AsteroidViewer() {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 5.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Panel
-            )
+            colors = CardDefaults.cardColors(containerColor = Panel)
         ) {
             Column(Modifier.padding(14.dp)) {
 
@@ -638,7 +1440,7 @@ fun AsteroidViewer() {
 }
 
 // =====================================
-// 3. NASA DONKI SPACE WEATHER
+// WEATHER VIEWER
 // =====================================
 
 @Composable
@@ -657,7 +1459,6 @@ fun WeatherViewer() {
         scope.launch {
             loading = true
             error = null
-
             try {
                 data = SpaceData.getDonkiEvents()
             } catch (e: Exception) {
@@ -670,20 +1471,13 @@ fun WeatherViewer() {
 
     LaunchedEffect(Unit) { load() }
 
-    ModuleHeading(
-        "SPACE WEATHER",
-        "NASA DONKI event notifications"
-    )
+    ModuleHeading("SPACE WEATHER", "NASA DONKI event notifications")
 
-    Button(
-        onClick = { load() },
-        enabled = !loading
-    ) {
+    Button(onClick = { load() }, enabled = !loading) {
         Text("REFRESH SPACE WEATHER")
     }
 
     if (loading) LoadingIndicator()
-
     error?.let { ErrorPanel(it) }
 
     if (!loading && error == null && data.isEmpty()) {
@@ -696,19 +1490,11 @@ fun WeatherViewer() {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 6.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Panel
-            )
+            colors = CardDefaults.cardColors(containerColor = Panel)
         ) {
             Column(Modifier.padding(15.dp)) {
 
-                Text(
-                    event.type,
-                    color = Blue,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(Modifier.height(5.dp))
+                Text(event.type, color = Blue, fontWeight = FontWeight.Bold)
 
                 Text(
                     event.title,
@@ -731,16 +1517,13 @@ fun WeatherViewer() {
 }
 
 // =====================================
-// 4. NASA EPIC EARTH OBSERVATORY
+// EPIC VIEWER
 // =====================================
 
 @Composable
 fun EpicViewer() {
 
-    var data by remember {
-        mutableStateOf<List<EarthImage>>(emptyList())
-    }
-
+    var data by remember { mutableStateOf<List<EarthImage>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -750,7 +1533,6 @@ fun EpicViewer() {
         scope.launch {
             loading = true
             error = null
-
             try {
                 data = SpaceData.getEarthImages()
             } catch (e: Exception) {
@@ -768,15 +1550,11 @@ fun EpicViewer() {
         "DSCOVR spacecraft natural Earth images"
     )
 
-    Button(
-        onClick = { load() },
-        enabled = !loading
-    ) {
+    Button(onClick = { load() }, enabled = !loading) {
         Text("REFRESH EARTH IMAGES")
     }
 
     if (loading) LoadingIndicator()
-
     error?.let { ErrorPanel(it) }
 
     data.take(8).forEach { earth ->
@@ -785,9 +1563,7 @@ fun EpicViewer() {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Panel
-            )
+            colors = CardDefaults.cardColors(containerColor = Panel)
         ) {
             Column(Modifier.padding(12.dp)) {
 
@@ -801,12 +1577,7 @@ fun EpicViewer() {
 
                 Spacer(Modifier.height(10.dp))
 
-                Text(
-                    earth.caption,
-                    color = Blue,
-                    fontWeight = FontWeight.Bold
-                )
-
+                Text(earth.caption, color = Blue, fontWeight = FontWeight.Bold)
                 Text(earth.date, color = Muted, fontSize = 11.sp)
             }
         }
@@ -814,16 +1585,13 @@ fun EpicViewer() {
 }
 
 // =====================================
-// 5. NASA EONET EARTH EVENTS
+// EARTH EVENTS VIEWER
 // =====================================
 
 @Composable
 fun EarthEventsViewer() {
 
-    var data by remember {
-        mutableStateOf<List<EarthEvent>>(emptyList())
-    }
-
+    var data by remember { mutableStateOf<List<EarthEvent>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -833,7 +1601,6 @@ fun EarthEventsViewer() {
         scope.launch {
             loading = true
             error = null
-
             try {
                 data = SpaceData.getEarthEvents()
             } catch (e: Exception) {
@@ -846,20 +1613,13 @@ fun EarthEventsViewer() {
 
     LaunchedEffect(Unit) { load() }
 
-    ModuleHeading(
-        "EARTH EVENT MONITOR",
-        "NASA EONET active natural events"
-    )
+    ModuleHeading("EARTH EVENT MONITOR", "NASA EONET active natural events")
 
-    Button(
-        onClick = { load() },
-        enabled = !loading
-    ) {
+    Button(onClick = { load() }, enabled = !loading) {
         Text("REFRESH EARTH EVENTS")
     }
 
     if (loading) LoadingIndicator()
-
     error?.let { ErrorPanel(it) }
 
     if (!loading && error == null && data.isEmpty()) {
@@ -872,9 +1632,7 @@ fun EarthEventsViewer() {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 5.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Panel
-            )
+            colors = CardDefaults.cardColors(containerColor = Panel)
         ) {
             Column(Modifier.padding(15.dp)) {
 
@@ -885,19 +1643,8 @@ fun EarthEventsViewer() {
                     fontSize = 11.sp
                 )
 
-                Spacer(Modifier.height(5.dp))
-
-                Text(
-                    event.title,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-
-                Text(
-                    event.date,
-                    color = Muted,
-                    fontSize = 11.sp
-                )
+                Text(event.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(event.date, color = Muted, fontSize = 11.sp)
 
                 Spacer(Modifier.height(8.dp))
 
@@ -914,27 +1661,20 @@ fun EarthEventsViewer() {
 }
 
 // =====================================
-// 6. NASA IMAGE LIBRARY
+// NASA IMAGE VIEWER
 // =====================================
 
 @Composable
 fun NasaImageViewer() {
 
-    var query by remember {
-        mutableStateOf("nebula")
-    }
-
-    var data by remember {
-        mutableStateOf<List<NasaImage>>(emptyList())
-    }
-
+    var query by remember { mutableStateOf("nebula") }
+    var data by remember { mutableStateOf<List<NasaImage>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
     val scope = rememberCoroutineScope()
 
     fun search() {
-
         if (query.isBlank()) {
             error = "Enter a search term."
             return
@@ -943,7 +1683,6 @@ fun NasaImageViewer() {
         scope.launch {
             loading = true
             error = null
-
             try {
                 data = SpaceData.searchNasaImages(query.trim())
             } catch (e: Exception) {
@@ -956,35 +1695,23 @@ fun NasaImageViewer() {
 
     LaunchedEffect(Unit) { search() }
 
-    ModuleHeading(
-        "NASA IMAGE EXPLORER",
-        "Search the NASA public image collection"
-    )
+    ModuleHeading("NASA IMAGE EXPLORER", "Search the NASA public image collection")
 
     OutlinedTextField(
         value = query,
         onValueChange = { query = it },
         modifier = Modifier.fillMaxWidth(),
         label = { Text("Search space images") },
-        singleLine = true,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = Blue,
-            focusedLabelColor = Blue,
-            cursorColor = Blue
-        )
+        singleLine = true
     )
 
     Spacer(Modifier.height(10.dp))
 
-    Button(
-        onClick = { search() },
-        enabled = !loading
-    ) {
+    Button(onClick = { search() }, enabled = !loading) {
         Text("SEARCH NASA LIBRARY")
     }
 
     if (loading) LoadingIndicator()
-
     error?.let { ErrorPanel(it) }
 
     data.forEach { image ->
@@ -993,9 +1720,7 @@ fun NasaImageViewer() {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 7.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Panel
-            )
+            colors = CardDefaults.cardColors(containerColor = Panel)
         ) {
             Column(Modifier.padding(12.dp)) {
 
@@ -1009,17 +1734,8 @@ fun NasaImageViewer() {
 
                 Spacer(Modifier.height(10.dp))
 
-                Text(
-                    image.title,
-                    fontWeight = FontWeight.Bold,
-                    color = Blue
-                )
-
-                Text(
-                    image.date,
-                    color = Muted,
-                    fontSize = 10.sp
-                )
+                Text(image.title, fontWeight = FontWeight.Bold, color = Blue)
+                Text(image.date, color = Muted, fontSize = 10.sp)
 
                 Spacer(Modifier.height(7.dp))
 
@@ -1034,16 +1750,13 @@ fun NasaImageViewer() {
 }
 
 // =====================================
-// 7. ESA GAIA STAR CATALOGUE
+// GAIA VIEWER
 // =====================================
 
 @Composable
 fun GaiaViewer() {
 
-    var data by remember {
-        mutableStateOf<List<GaiaStar>>(emptyList())
-    }
-
+    var data by remember { mutableStateOf<List<GaiaStar>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -1053,7 +1766,6 @@ fun GaiaViewer() {
         scope.launch {
             loading = true
             error = null
-
             try {
                 data = SpaceData.getGaiaStars()
             } catch (e: Exception) {
@@ -1066,20 +1778,13 @@ fun GaiaViewer() {
 
     LaunchedEffect(Unit) { load() }
 
-    ModuleHeading(
-        "GAIA STAR CATALOGUE",
-        "ESA Gaia DR3 stellar observations"
-    )
+    ModuleHeading("GAIA STAR CATALOGUE", "ESA Gaia DR3 stellar observations")
 
-    Button(
-        onClick = { load() },
-        enabled = !loading
-    ) {
+    Button(onClick = { load() }, enabled = !loading) {
         Text("REFRESH STAR DATA")
     }
 
     if (loading) LoadingIndicator()
-
     error?.let { ErrorPanel(it) }
 
     data.forEach { star ->
@@ -1088,9 +1793,7 @@ fun GaiaViewer() {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 5.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Panel
-            )
+            colors = CardDefaults.cardColors(containerColor = Panel)
         ) {
             Column(Modifier.padding(14.dp)) {
 
@@ -1110,7 +1813,7 @@ fun GaiaViewer() {
 }
 
 // =====================================
-// COMMON UI COMPONENTS
+// COMMON UI
 // =====================================
 
 @Composable
@@ -1125,11 +1828,7 @@ fun ModuleHeading(title: String, subtitle: String) {
         fontWeight = FontWeight.Bold
     )
 
-    Text(
-        subtitle,
-        color = Muted,
-        fontSize = 12.sp
-    )
+    Text(subtitle, color = Muted, fontSize = 12.sp)
 
     Spacer(Modifier.height(12.dp))
 }
@@ -1137,9 +1836,8 @@ fun ModuleHeading(title: String, subtitle: String) {
 @Composable
 fun LoadingIndicator() {
 
-    Row(
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+
         CircularProgressIndicator(
             modifier = Modifier.size(24.dp),
             color = Blue,
@@ -1148,10 +1846,7 @@ fun LoadingIndicator() {
 
         Spacer(Modifier.width(12.dp))
 
-        Text(
-            "Connecting to space data...",
-            color = Muted
-        )
+        Text("Connecting to space data...", color = Muted)
     }
 
     Spacer(Modifier.height(12.dp))
