@@ -7,8 +7,6 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -118,9 +116,7 @@ fun AstroSphereApp() {
             )
 
             "Explore" -> ExploreScreen()
-
             "Missions" -> MissionsScreen()
-
             "Research" -> ResearchScreen()
         }
     }
@@ -434,7 +430,12 @@ fun WeatherScreen() {
 
         events.forEach { event ->
             CardPanel {
-                Text(event.type, color = Blue, fontWeight = FontWeight.Bold)
+                Text(
+                    event.type,
+                    color = Blue,
+                    fontWeight = FontWeight.Bold
+                )
+
                 Text(event.date, color = Muted, fontSize = 11.sp)
 
                 Spacer(Modifier.height(8.dp))
@@ -767,6 +768,8 @@ fun ResearchScreen() {
     }
 }
 
+/* CORRECTED MODULE COLUMN */
+
 @Composable
 fun ModuleColumn(
     heading: String,
@@ -776,11 +779,10 @@ fun ModuleColumn(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        content = content
+            .padding(16.dp)
     ) {
         Text(
-            heading,
+            text = heading,
             color = Blue,
             fontSize = 21.sp,
             fontWeight = FontWeight.Bold
@@ -842,7 +844,10 @@ fun LoadingMessage() {
 
         Spacer(Modifier.width(12.dp))
 
-        Text("Connecting to space data services...", color = Muted)
+        Text(
+            "Connecting to space data services...",
+            color = Muted
+        )
     }
 }
 
