@@ -212,7 +212,6 @@ object SpaceData {
             json.optJSONObject("near_earth_objects") ?: JSONObject()
 
         val results = mutableListOf<Asteroid>()
-
         val dates = nearEarthObjects.keys()
 
         while (dates.hasNext()) {
@@ -383,8 +382,7 @@ object SpaceData {
     }
 
     suspend fun getEpicImages(): List<EarthImage> {
-        val url =
-            "https://epic.gsfc.nasa.gov/api/natural"
+        val url = "https://epic.gsfc.nasa.gov/api/natural"
 
         val array = JSONArray(get(url))
         val results = mutableListOf<EarthImage>()
@@ -392,12 +390,8 @@ object SpaceData {
         for (i in 0 until minOf(array.length(), 10)) {
             val item = array.getJSONObject(i)
 
-            val identifier =
-                item.optString("image", "")
-
-            val date =
-                item.optString("date", "")
-
+            val identifier = item.optString("image", "")
+            val date = item.optString("date", "")
             val dateParts = date.substringBefore(" ").split("-")
 
             if (dateParts.size != 3) continue
@@ -433,17 +427,14 @@ object SpaceData {
 
         for (i in 0 until array.length()) {
             val item = array.getJSONObject(i)
-
-            val categories =
-                item.optJSONArray("categories")
+            val categories = item.optJSONArray("categories")
 
             val category =
                 categories?.optJSONObject(0)
                     ?.optString("title", "Earth Event")
                     ?: "Earth Event"
 
-            val geometry =
-                item.optJSONArray("geometry")
+            val geometry = item.optJSONArray("geometry")
 
             val date =
                 geometry?.optJSONObject(0)
