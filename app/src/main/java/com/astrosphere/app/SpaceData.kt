@@ -9,7 +9,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
-private const val NASA_KEY = "DEMO_KEY"
+private const val NASA_KEY = "NASA_API_KEY"
 
 data class Apod(
     val title: String,
