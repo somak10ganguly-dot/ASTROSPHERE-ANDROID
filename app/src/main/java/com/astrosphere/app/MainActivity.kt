@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -53,12 +54,7 @@ class MainActivity : ComponentActivity() {
 fun AstroSphereApp() {
     var selectedTab by remember { mutableStateOf("Home") }
 
-    val tabs = listOf(
-        "Home",
-        "Explore",
-        "Missions",
-        "Research"
-    )
+    val tabs = listOf("Home", "Explore", "Missions", "Research")
 
     Column(
         modifier = Modifier
@@ -111,10 +107,9 @@ fun AstroSphereApp() {
         HorizontalDivider(color = Panel)
 
         when (selectedTab) {
-            "Home" -> HomeScreen(
-                onExplore = { selectedTab = "Explore" }
-            )
-
+            "Home" -> HomeScreen {
+                selectedTab = "Explore"
+            }
             "Explore" -> ExploreScreen()
             "Missions" -> MissionsScreen()
             "Research" -> ResearchScreen()
@@ -225,22 +220,17 @@ fun ExploreScreen() {
         "Gaia"
     )
 
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
+    Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
                 .padding(8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             modules.forEach { module ->
                 Surface(
-                    color = if (selectedModule == module) {
-                        Blue
-                    } else {
-                        Panel
-                    },
+                    color = if (selectedModule == module) Blue else Panel,
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.clickable {
                         selectedModule = module
@@ -277,14 +267,13 @@ fun ApodScreen() {
     var apod by remember { mutableStateOf<Apod?>(null) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
-
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
+    suspend fun loadApod() {
         loading = true
+        error = ""
         try {
             apod = SpaceData.getApod()
-            error = ""
         } catch (e: Exception) {
             error = e.message ?: "Unable to load APOD."
         } finally {
@@ -292,9 +281,12 @@ fun ApodScreen() {
         }
     }
 
+    LaunchedEffect(Unit) {
+        loadApod()
+    }
+
     ModuleColumn("Astronomy Picture of the Day") {
         if (loading) LoadingMessage()
-
         ErrorMessage(error)
 
         apod?.let {
@@ -336,18 +328,9 @@ fun ApodScreen() {
 
         Button(
             onClick = {
-                scope.launch {
-                    loading = true
-                    try {
-                        apod = SpaceData.getApod()
-                        error = ""
-                    } catch (e: Exception) {
-                        error = e.message ?: "Unable to load APOD."
-                    } finally {
-                        loading = false
-                    }
-                }
-            }
+                scope.launch { loadApod() }
+            },
+            enabled = !loading
         ) {
             Text("Refresh")
         }
@@ -361,9 +344,11 @@ fun AsteroidScreen() {
     }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
+    suspend fun loadAsteroids() {
         loading = true
+        error = ""
         try {
             asteroids = SpaceData.getAsteroids()
         } catch (e: Exception) {
@@ -371,6 +356,10 @@ fun AsteroidScreen() {
         } finally {
             loading = false
         }
+    }
+
+    LaunchedEffect(Unit) {
+        loadAsteroids()
     }
 
     ModuleColumn("Near Earth Objects") {
@@ -402,6 +391,13 @@ fun AsteroidScreen() {
 
             Spacer(Modifier.height(10.dp))
         }
+
+        Button(
+            onClick = { scope.launch { loadAsteroids() } },
+            enabled = !loading
+        ) {
+            Text("Refresh Asteroids")
+        }
     }
 }
 
@@ -412,9 +408,11 @@ fun WeatherScreen() {
     }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
+    suspend fun loadWeather() {
         loading = true
+        error = ""
         try {
             events = SpaceData.getSpaceWeather()
         } catch (e: Exception) {
@@ -422,6 +420,10 @@ fun WeatherScreen() {
         } finally {
             loading = false
         }
+    }
+
+    LaunchedEffect(Unit) {
+        loadWeather()
     }
 
     ModuleColumn("NASA Space Weather") {
@@ -449,6 +451,13 @@ fun WeatherScreen() {
 
             Spacer(Modifier.height(10.dp))
         }
+
+        Button(
+            onClick = { scope.launch { loadWeather() } },
+            enabled = !loading
+        ) {
+            Text("Refresh Space Weather")
+        }
     }
 }
 
@@ -459,9 +468,11 @@ fun EpicScreen() {
     }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
+    suspend fun loadEpic() {
         loading = true
+        error = ""
         try {
             images = SpaceData.getEpicImages()
         } catch (e: Exception) {
@@ -469,6 +480,10 @@ fun EpicScreen() {
         } finally {
             loading = false
         }
+    }
+
+    LaunchedEffect(Unit) {
+        loadEpic()
     }
 
     ModuleColumn("Earth Observation - NASA EPIC") {
@@ -502,6 +517,13 @@ fun EpicScreen() {
 
             Spacer(Modifier.height(10.dp))
         }
+
+        Button(
+            onClick = { scope.launch { loadEpic() } },
+            enabled = !loading
+        ) {
+            Text("Refresh Earth Images")
+        }
     }
 }
 
@@ -512,9 +534,11 @@ fun EarthEventsScreen() {
     }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
+    suspend fun loadEvents() {
         loading = true
+        error = ""
         try {
             events = SpaceData.getEarthEvents()
         } catch (e: Exception) {
@@ -522,6 +546,10 @@ fun EarthEventsScreen() {
         } finally {
             loading = false
         }
+    }
+
+    LaunchedEffect(Unit) {
+        loadEvents()
     }
 
     ModuleColumn("Earth Events - EONET") {
@@ -548,6 +576,13 @@ fun EarthEventsScreen() {
 
             Spacer(Modifier.height(10.dp))
         }
+
+        Button(
+            onClick = { scope.launch { loadEvents() } },
+            enabled = !loading
+        ) {
+            Text("Refresh Earth Events")
+        }
     }
 }
 
@@ -559,8 +594,19 @@ fun NasaImagesScreen() {
     }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
-
     val scope = rememberCoroutineScope()
+
+    suspend fun searchImages() {
+        loading = true
+        error = ""
+        try {
+            images = SpaceData.searchNasaImages(search)
+        } catch (e: Exception) {
+            error = e.message ?: "Image search failed."
+        } finally {
+            loading = false
+        }
+    }
 
     ModuleColumn("NASA Image Library") {
         OutlinedTextField(
@@ -573,20 +619,9 @@ fun NasaImagesScreen() {
 
         Button(
             onClick = {
-                scope.launch {
-                    loading = true
-                    error = ""
-
-                    try {
-                        images = SpaceData.searchNasaImages(search)
-                    } catch (e: Exception) {
-                        error = e.message ?: "Image search failed."
-                    } finally {
-                        loading = false
-                    }
-                }
+                scope.launch { searchImages() }
             },
-            enabled = search.isNotBlank()
+            enabled = search.isNotBlank() && !loading
         ) {
             Text("Search")
         }
@@ -633,11 +668,11 @@ fun GaiaScreen() {
     }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
-
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
+    suspend fun loadGaia() {
         loading = true
+        error = ""
         try {
             stars = SpaceData.getGaiaStars()
         } catch (e: Exception) {
@@ -645,6 +680,10 @@ fun GaiaScreen() {
         } finally {
             loading = false
         }
+    }
+
+    LaunchedEffect(Unit) {
+        loadGaia()
     }
 
     ModuleColumn("ESA Gaia DR3 Star Catalogue") {
@@ -660,20 +699,8 @@ fun GaiaScreen() {
         ErrorMessage(error)
 
         Button(
-            onClick = {
-                scope.launch {
-                    loading = true
-                    error = ""
-
-                    try {
-                        stars = SpaceData.getGaiaStars()
-                    } catch (e: Exception) {
-                        error = e.message ?: "Gaia request failed."
-                    } finally {
-                        loading = false
-                    }
-                }
-            }
+            onClick = { scope.launch { loadGaia() } },
+            enabled = !loading
         ) {
             Text("Retry Gaia Connection")
         }
@@ -768,8 +795,6 @@ fun ResearchScreen() {
     }
 }
 
-/* CORRECTED MODULE COLUMN */
-
 @Composable
 fun ModuleColumn(
     heading: String,
@@ -779,19 +804,20 @@ fun ModuleColumn(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp)
-    ) {
-        Text(
-            text = heading,
-            color = Blue,
-            fontSize = 21.sp,
-            fontWeight = FontWeight.Bold
-        )
+            .padding(16.dp),
+        content = {
+            Text(
+                text = heading,
+                color = Blue,
+                fontSize = 21.sp,
+                fontWeight = FontWeight.Bold
+            )
 
-        Spacer(Modifier.height(15.dp))
+            Spacer(Modifier.height(15.dp))
 
-        content()
-    }
+            content()
+        }
+    )
 }
 
 @Composable
