@@ -1,38 +1,34 @@
 
 package com.astrosphere.app
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import android.text.Html
+import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
 
-// --------------------------------------------------
-// DATA MODELS
-// --------------------------------------------------
+private const val NASA_KEY = "DEMO_KEY"
 
 data class Apod(
     val title: String,
     val explanation: String,
     val imageUrl: String,
-    val date: String
+    val date: String,
+    val mediaType: String
 )
 
 data class Asteroid(
     val name: String,
-    val diameter: Double,
+    val diameter: String,
     val velocity: String,
     val distance: String,
     val hazardous: Boolean
 )
 
 data class GaiaStar(
-    val id: String,
+    val sourceId: String,
     val ra: String,
     val dec: String,
     val magnitude: String,
@@ -40,125 +36,139 @@ data class GaiaStar(
 )
 
 data class SpaceWeatherEvent(
-    val id: String,
     val type: String,
-    val title: String,
     val date: String,
-    val description: String,
-    val link: String
+    val message: String
 )
 
 data class EarthImage(
     val identifier: String,
     val caption: String,
-    val date: String,
     val imageUrl: String
 )
 
 data class EarthEvent(
-    val id: String,
     val title: String,
-    val description: String,
     val category: String,
     val date: String,
-    val link: String
+    val description: String
 )
 
 data class NasaImage(
-    val id: String,
     val title: String,
     val description: String,
     val imageUrl: String,
     val date: String
 )
 
-// --------------------------------------------------
-// SPACE DATA API
-// --------------------------------------------------
-
 object SpaceData {
 
-    private const val NASA_KEY = BuildConfig.NASA_API_KEY
+    private const val NASA_BASE = "https://api.nasa.gov"
+    private const val ESA_GAIA =
+        "https://gea.esac.esa.int/tap-server/tap/sync"
 
-    private const val NASA_BASE =
-        "https://api.nasa.gov"
+    private fun get(urlString: String): String {
+        val connection =
+            URL(urlString).openConnection() as HttpURLConnection
 
-    // --------------------------------------------------
-    // HTTP CONNECTION
-    // --------------------------------------------------
+        try {
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 20000
+            connection.readTimeout = 30000
+            connection.setRequestProperty("Accept", "application/json")
 
-    private suspend fun get(urlString: String): String =
-        withContext(Dispatchers.IO) {
+            val code = connection.responseCode
 
-            var connection: HttpURLConnection? = null
+            val stream = if (code in 200..299) {
+                connection.inputStream
+            } else {
+                connection.errorStream
+            }
 
-            try {
-                connection =
-                    URL(urlString).openConnection() as HttpURLConnection
+            val response = stream?.bufferedReader()?.use {
+                it.readText()
+            } ?: ""
 
-                connection.requestMethod = "GET"
-                connection.connectTimeout = 20000
-                connection.readTimeout = 30000
-                connection.setRequestProperty(
-                    "Accept",
-                    "application/json"
-                )
-                connection.setRequestProperty(
-                    "User-Agent",
-                    "ASTROSPHERE-Android/2.0"
-                )
+            if (code !in 200..299) {
+                throw Exception("HTTP $code: ${response.take(300)}")
+            }
 
-                val responseCode = connection.responseCode
+            return response
+        } finally {
+            connection.disconnect()
+        }
+    }
 
-                val stream =
-                    if (responseCode in 200..299) {
-                        connection.inputStream
-                    } else {
-                        connection.errorStream
-                    }
+    private fun post(
+        urlString: String,
+        formBody: String
+    ): String {
+        val connection =
+            URL(urlString).openConnection() as HttpURLConnection
 
-                val response = stream?.bufferedReader()?.use {
-                    it.readText()
-                } ?: ""
+        try {
+            connection.requestMethod = "POST"
+            connection.connectTimeout = 20000
+            connection.readTimeout = 45000
+            connection.doOutput = true
 
-                if (responseCode !in 200..299) {
-                    throw Exception(
-                        "HTTP $responseCode: " +
-                        response.take(500)
-                    )
-                }
+            connection.setRequestProperty(
+                "Content-Type",
+                "application/x-www-form-urlencoded; charset=UTF-8"
+            )
 
-                response
+            connection.setRequestProperty("Accept", "text/csv")
 
-            } catch (e: Exception) {
+            connection.outputStream.use {
+                it.write(formBody.toByteArray(Charsets.UTF_8))
+            }
+
+            val code = connection.responseCode
+
+            val stream = if (code in 200..299) {
+                connection.inputStream
+            } else {
+                connection.errorStream
+            }
+
+            val response = stream?.bufferedReader()?.use {
+                it.readText()
+            } ?: ""
+
+            if (code !in 200..299) {
                 throw Exception(
-                    e.message ?: "Network connection failed"
+                    "Gaia HTTP $code: ${response.take(300)}"
                 )
-            } finally {
-                connection?.disconnect()
+            }
+
+            return response
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private suspend fun postWithRetry(
+        url: String,
+        body: String
+    ): String {
+        var lastError: Exception? = null
+
+        for (attempt in 0 until 3) {
+            try {
+                return post(url, body)
+            } catch (e: Exception) {
+                lastError = e
+
+                if (attempt < 2) {
+                    delay(1500L * (attempt + 1))
+                }
             }
         }
 
-    // --------------------------------------------------
-    // DATE UTILITIES
-    // --------------------------------------------------
-
-    private fun dateRange(days: Int): Pair<String, String> {
-
-        val formatter =
-            SimpleDateFormat("yyyy-MM-dd", Locale.US)
-
-        val endCalendar = Calendar.getInstance()
-        val startCalendar = Calendar.getInstance()
-
-        startCalendar.add(
-            Calendar.DAY_OF_YEAR,
-            -(days.coerceAtLeast(1) - 1)
-        )
-
-        return Pair(
-            formatter.format(startCalendar.time),
-            formatter.format(endCalendar.time)
+        throw Exception(
+            "ESA Gaia service is temporarily unavailable. " +
+                "Please try again later. " +
+                (lastError?.message ?: "")
         )
     }
 
@@ -166,139 +176,81 @@ object SpaceData {
         return URLEncoder.encode(value, "UTF-8")
     }
 
-    // --------------------------------------------------
-    // 1. NASA ASTRONOMY PICTURE OF THE DAY
-    // Updated WordPress API
-    // --------------------------------------------------
+    private fun cleanHtml(value: String): String {
+        return Html.fromHtml(
+            value,
+            Html.FROM_HTML_MODE_COMPACT
+        ).toString()
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
 
     suspend fun getApod(): Apod {
-
         val url =
-            "https://science.nasa.gov/wp-json/wp/v2/apod-basic/" +
-            "?api_key=$NASA_KEY"
+            "$NASA_BASE/planetary/apod?api_key=$NASA_KEY"
 
-        val array = JSONArray(get(url))
+        val json = JSONObject(get(url))
 
-        if (array.length() == 0) {
-            throw Exception("NASA APOD returned no records")
-        }
-
-        val response = array.getJSONObject(0)
-
-        val mediaType =
-            response.optString("media_type", "image")
-
-        if (mediaType != "image") {
-            throw Exception(
-                "Today's APOD is not an image. " +
-                "Please try again later."
-            )
-        }
-
-        val imageUrl =
-            response.optString("hdurl")
-                .ifBlank {
-                    response.optString("url")
-                }
-
-        if (imageUrl.isBlank()) {
-            throw Exception("APOD image URL is missing")
-        }
+        val rawExplanation =
+            json.optString("explanation", "No description available")
 
         return Apod(
-            title = response.optString(
-                "title",
-                "Astronomy Picture of the Day"
-            ),
-            explanation = response.optString(
-                "explanation",
-                "No explanation available"
-            ),
-            imageUrl = imageUrl,
-            date = response.optString("date", "")
+            title = json.optString("title", "Astronomy Picture"),
+            explanation = cleanHtml(rawExplanation),
+            imageUrl = json.optString("url", ""),
+            date = json.optString("date", ""),
+            mediaType = json.optString("media_type", "image")
         )
     }
 
-    // --------------------------------------------------
-    // 2. NEAR EARTH ASTEROIDS
-    // --------------------------------------------------
-
     suspend fun getAsteroids(): List<Asteroid> {
-
-        val (startDate, endDate) = dateRange(7)
-
         val url =
-            "$NASA_BASE/neo/rest/v1/feed" +
-            "?start_date=$startDate" +
-            "&end_date=$endDate" +
-            "&api_key=$NASA_KEY"
+            "$NASA_BASE/neo/rest/v1/feed?api_key=$NASA_KEY"
 
-        val response = JSONObject(get(url))
-
-        val objects =
-            response.optJSONObject("near_earth_objects")
-                ?: return emptyList()
+        val json = JSONObject(get(url))
+        val nearEarthObjects =
+            json.optJSONObject("near_earth_objects") ?: JSONObject()
 
         val results = mutableListOf<Asteroid>()
 
-        val dates = objects.keys()
+        val dates = nearEarthObjects.keys()
 
         while (dates.hasNext()) {
-
             val date = dates.next()
-            val dailyObjects = objects.optJSONArray(date)
-                ?: continue
+            val array =
+                nearEarthObjects.optJSONArray(date) ?: JSONArray()
 
-            for (i in 0 until dailyObjects.length()) {
-
-                val item =
-                    dailyObjects.getJSONObject(i)
-
-                val diameterData =
-                    item.optJSONObject(
-                        "estimated_diameter"
-                    )?.optJSONObject("kilometers")
+            for (i in 0 until array.length()) {
+                val item = array.getJSONObject(i)
 
                 val diameter =
-                    diameterData?.optDouble(
-                        "estimated_diameter_max",
-                        0.0
-                    ) ?: 0.0
+                    item.optJSONObject("estimated_diameter")
+                        ?.optJSONObject("kilometers")
+                        ?.optDouble("estimated_diameter_max", 0.0)
+                        ?: 0.0
 
                 val closeApproach =
-                    item.optJSONArray(
-                        "close_approach_data"
-                    )?.optJSONObject(0)
+                    item.optJSONArray("close_approach_data")
+                        ?.optJSONObject(0)
 
                 val velocity =
                     closeApproach
-                        ?.optJSONObject(
-                            "relative_velocity"
-                        )
-                        ?.optString(
-                            "kilometers_per_hour",
-                            "Unknown"
-                        ) ?: "Unknown"
+                        ?.optJSONObject("relative_velocity")
+                        ?.optString("kilometers_per_hour", "Unknown")
+                        ?: "Unknown"
 
                 val distance =
                     closeApproach
-                        ?.optJSONObject(
-                            "miss_distance"
-                        )
-                        ?.optString(
-                            "kilometers",
-                            "Unknown"
-                        ) ?: "Unknown"
+                        ?.optJSONObject("miss_distance")
+                        ?.optString("kilometers", "Unknown")
+                        ?: "Unknown"
 
                 results.add(
                     Asteroid(
-                        name = item.optString(
-                            "name",
-                            "Unknown asteroid"
-                        ),
-                        diameter = diameter,
-                        velocity = velocity,
-                        distance = distance,
+                        name = item.optString("name", "Unknown"),
+                        diameter = "%.3f km".format(diameter),
+                        velocity = "$velocity km/h",
+                        distance = "$distance km",
                         hazardous = item.optBoolean(
                             "is_potentially_hazardous_asteroid",
                             false
@@ -308,21 +260,12 @@ object SpaceData {
             }
         }
 
-        return results.sortedBy {
-            it.distance.toDoubleOrNull()
-                ?: Double.MAX_VALUE
-        }
+        return results
     }
 
-    // --------------------------------------------------
-    // 3. ESA GAIA STAR CATALOGUE
-    // Gaia DR3 TAP QUERY
-    // --------------------------------------------------
-
     suspend fun getGaiaStars(): List<GaiaStar> {
-
         val query = """
-            SELECT TOP 40
+            SELECT TOP 20
             source_id,
             ra,
             dec,
@@ -334,39 +277,46 @@ object SpaceData {
             ORDER BY phot_g_mean_mag ASC
         """.trimIndent()
 
-        val url =
-            "https://gea.esac.esa.int/tap-server/tap/sync" +
-            "?REQUEST=doQuery" +
-            "&LANG=ADQL" +
-            "&FORMAT=csv" +
-            "&QUERY=${encode(query)}"
+        val body =
+            "REQUEST=doQuery" +
+                "&LANG=ADQL" +
+                "&FORMAT=csv" +
+                "&QUERY=${encode(query)}"
 
-        val csv = get(url)
+        val response = postWithRetry(ESA_GAIA, body)
 
+        return parseGaiaCsv(response)
+    }
+
+    private fun parseGaiaCsv(csv: String): List<GaiaStar> {
         val lines = csv.lines()
             .filter { it.isNotBlank() }
 
-        if (lines.size <= 1) {
-            return emptyList()
+        if (lines.size < 2) {
+            throw Exception("Gaia returned no star records.")
         }
+
+        val headers = parseCsvLine(lines.first())
+            .map { it.trim().lowercase() }
 
         val results = mutableListOf<GaiaStar>()
 
         for (line in lines.drop(1)) {
+            val values = parseCsvLine(line)
 
-            val columns = parseCsvLine(line)
+            if (values.size < headers.size) continue
 
-            if (columns.size < 5) {
-                continue
+            val row = headers.indices.associate {
+                headers[it] to values[it]
             }
 
             results.add(
                 GaiaStar(
-                    id = columns[0],
-                    ra = columns[1],
-                    dec = columns[2],
-                    magnitude = columns[3],
-                    parallax = columns[4]
+                    sourceId = row["source_id"] ?: "",
+                    ra = row["ra"] ?: "",
+                    dec = row["dec"] ?: "",
+                    magnitude = row["phot_g_mean_mag"] ?: "",
+                    parallax = row["parallax"] ?: ""
                 )
             )
         }
@@ -374,102 +324,57 @@ object SpaceData {
         return results
     }
 
-    // --------------------------------------------------
-    // CSV PARSER
-    // --------------------------------------------------
-
     private fun parseCsvLine(line: String): List<String> {
-
         val result = mutableListOf<String>()
         val current = StringBuilder()
-
         var insideQuotes = false
         var i = 0
 
         while (i < line.length) {
-
-            val character = line[i]
+            val char = line[i]
 
             when {
-                character == '"' -> {
-
-                    if (
-                        insideQuotes &&
-                        i + 1 < line.length &&
-                        line[i + 1] == '"'
-                    ) {
-                        current.append('"')
-                        i++
-                    } else {
-                        insideQuotes = !insideQuotes
-                    }
+                char == '"' && insideQuotes &&
+                    i + 1 < line.length &&
+                    line[i + 1] == '"' -> {
+                    current.append('"')
+                    i++
                 }
 
-                character == ',' && !insideQuotes -> {
+                char == '"' -> {
+                    insideQuotes = !insideQuotes
+                }
+
+                char == ',' && !insideQuotes -> {
                     result.add(current.toString())
                     current.clear()
                 }
 
-                else -> current.append(character)
+                else -> current.append(char)
             }
 
             i++
         }
 
         result.add(current.toString())
-
         return result
     }
 
-    // --------------------------------------------------
-    // 4. NASA SPACE WEATHER / DONKI
-    // --------------------------------------------------
-
-    suspend fun getDonkiEvents(
-        type: String = "all",
-        days: Int = 7
-    ): List<SpaceWeatherEvent> {
-
-        val (startDate, endDate) = dateRange(days)
-
+    suspend fun getSpaceWeather(): List<SpaceWeatherEvent> {
         val url =
-            "$NASA_BASE/DONKI/notifications" +
-            "?startDate=$startDate" +
-            "&endDate=$endDate" +
-            "&type=${encode(type)}" +
-            "&api_key=$NASA_KEY"
+            "$NASA_BASE/DONKI/notifications?api_key=$NASA_KEY"
 
         val array = JSONArray(get(url))
-
         val results = mutableListOf<SpaceWeatherEvent>()
 
-        for (i in 0 until array.length()) {
-
+        for (i in 0 until minOf(array.length(), 20)) {
             val item = array.getJSONObject(i)
 
             results.add(
                 SpaceWeatherEvent(
-                    id = item.optString(
-                        "messageID",
-                        "event_$i"
-                    ),
-                    type = item.optString(
-                        "messageType",
-                        "Space Weather"
-                    ),
-                    title = item.optString(
-                        "messageType",
-                        "Space Weather Event"
-                    ),
-                    date = item.optString(
-                        "messageIssueTime",
-                        ""
-                    ),
-                    description = item.optString(
-                        "messageBody",
-                        "No description available"
-                    ),
-                    link = item.optString("messageURL", "")
+                    type = item.optString("messageType", "Space Weather"),
+                    date = item.optString("messageIssueTime", ""),
+                    message = item.optString("messageBody", "")
                 )
             )
         }
@@ -477,22 +382,14 @@ object SpaceData {
         return results
     }
 
-    // --------------------------------------------------
-    // 5. NASA EPIC EARTH IMAGES
-    // Official Goddard endpoint
-    // --------------------------------------------------
-
-    suspend fun getEarthImages(): List<EarthImage> {
-
+    suspend fun getEpicImages(): List<EarthImage> {
         val url =
             "https://epic.gsfc.nasa.gov/api/natural"
 
         val array = JSONArray(get(url))
-
         val results = mutableListOf<EarthImage>()
 
-        for (i in 0 until array.length()) {
-
+        for (i in 0 until minOf(array.length(), 10)) {
             val item = array.getJSONObject(i)
 
             val identifier =
@@ -501,40 +398,22 @@ object SpaceData {
             val date =
                 item.optString("date", "")
 
-            if (
-                identifier.isBlank() ||
-                date.isBlank()
-            ) {
-                continue
-            }
+            val dateParts = date.substringBefore(" ").split("-")
 
-            val dateOnly =
-                date.substringBefore("T")
-                    .substringBefore(" ")
-
-            val parts = dateOnly.split("-")
-
-            if (parts.size != 3) {
-                continue
-            }
-
-            val year = parts[0]
-            val month = parts[1]
-            val day = parts[2]
+            if (dateParts.size != 3) continue
 
             val imageUrl =
-                "https://epic.gsfc.nasa.gov/archive/" +
-                "natural/$year/$month/$day/jpg/" +
-                "$identifier.jpg"
+                "https://epic.gsfc.nasa.gov/archive/natural/" +
+                    "${dateParts[0]}/${dateParts[1]}/${dateParts[2]}/" +
+                    "jpg/$identifier.jpg"
 
             results.add(
                 EarthImage(
                     identifier = identifier,
                     caption = item.optString(
                         "caption",
-                        "Earth observed by DSCOVR"
+                        "Earth from NASA EPIC"
                     ),
-                    date = date,
                     imageUrl = imageUrl
                 )
             )
@@ -543,34 +422,23 @@ object SpaceData {
         return results
     }
 
-    // --------------------------------------------------
-    // 6. NASA EONET EARTH EVENTS
-    // --------------------------------------------------
-
     suspend fun getEarthEvents(): List<EarthEvent> {
-
         val url =
-            "https://eonet.gsfc.nasa.gov/api/v3/events" +
-            "?status=open&limit=50"
+            "https://eonet.gsfc.nasa.gov/api/v3/events?limit=20"
 
-        val response = JSONObject(get(url))
-
-        val array =
-            response.optJSONArray("events")
-                ?: return emptyList()
+        val json = JSONObject(get(url))
+        val array = json.optJSONArray("events") ?: JSONArray()
 
         val results = mutableListOf<EarthEvent>()
 
         for (i in 0 until array.length()) {
-
             val item = array.getJSONObject(i)
 
             val categories =
                 item.optJSONArray("categories")
 
             val category =
-                categories
-                    ?.optJSONObject(0)
+                categories?.optJSONObject(0)
                     ?.optString("title", "Earth Event")
                     ?: "Earth Event"
 
@@ -578,28 +446,19 @@ object SpaceData {
                 item.optJSONArray("geometry")
 
             val date =
-                geometry
-                    ?.optJSONObject(0)
+                geometry?.optJSONObject(0)
                     ?.optString("date", "")
                     ?: ""
 
             results.add(
                 EarthEvent(
-                    id = item.optString(
-                        "id",
-                        "earth_event_$i"
-                    ),
-                    title = item.optString(
-                        "title",
-                        "Unnamed Earth Event"
-                    ),
-                    description = item.optString(
-                        "description",
-                        "No additional description available"
-                    ),
+                    title = item.optString("title", "Unknown Event"),
                     category = category,
                     date = date,
-                    link = item.optString("link", "")
+                    description = item.optString(
+                        "description",
+                        "No additional description."
+                    )
                 )
             )
         }
@@ -607,76 +466,43 @@ object SpaceData {
         return results
     }
 
-    // --------------------------------------------------
-    // 7. NASA IMAGE AND VIDEO LIBRARY
-    // --------------------------------------------------
-
     suspend fun searchNasaImages(
-        query: String
+        searchTerm: String
     ): List<NasaImage> {
-
-        if (query.isBlank()) {
-            throw Exception("Enter a search term")
-        }
-
         val url =
-            "https://images-api.nasa.gov/search" +
-            "?q=${encode(query)}" +
-            "&media_type=image"
+            "https://images-api.nasa.gov/search?q=${encode(searchTerm)}&media_type=image"
 
-        val response = JSONObject(get(url))
-
+        val json = JSONObject(get(url))
         val collection =
-            response.optJSONObject("collection")
-                ?: return emptyList()
+            json.optJSONObject("collection") ?: JSONObject()
 
         val items =
-            collection.optJSONArray("items")
-                ?: return emptyList()
+            collection.optJSONArray("items") ?: JSONArray()
 
         val results = mutableListOf<NasaImage>()
 
-        for (i in 0 until items.length()) {
-
+        for (i in 0 until minOf(items.length(), 20)) {
             val item = items.getJSONObject(i)
 
             val data =
-                item.optJSONArray("data")
-                    ?.optJSONObject(0)
-                    ?: continue
+                item.optJSONArray("data")?.optJSONObject(0)
+                    ?: JSONObject()
 
             val links =
-                item.optJSONArray("links")
+                item.optJSONArray("links") ?: JSONArray()
 
             val imageUrl =
-                links
-                    ?.optJSONObject(0)
-                    ?.optString("href", "")
-                    ?: ""
-
-            if (imageUrl.isBlank()) {
-                continue
-            }
+                links.optJSONObject(0)?.optString("href", "") ?: ""
 
             results.add(
                 NasaImage(
-                    id = data.optString(
-                        "nasa_id",
-                        "nasa_image_$i"
-                    ),
-                    title = data.optString(
-                        "title",
-                        "Untitled NASA Image"
-                    ),
+                    title = data.optString("title", "NASA Image"),
                     description = data.optString(
                         "description",
-                        "No description available"
+                        "No description available."
                     ),
                     imageUrl = imageUrl,
-                    date = data.optString(
-                        "date_created",
-                        ""
-                    )
+                    date = data.optString("date_created", "")
                 )
             )
         }
